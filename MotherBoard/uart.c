@@ -8,13 +8,13 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-#define USART_BAUDRATE 1200
+#define USART_BAUDRATE 9600
 #define UBRR_VALUE ((F_CPU / (USART_BAUDRATE * 16UL)) - 1)
 
 void USARTInit(void)
 {
-	UBRRH = (UBRR_VALUE>>8);                      // shift the register right by 8 bits
-	UBRRL = UBRR_VALUE;                           // set baud rate
+	UBRRH = (uint8_t)(UBRR_VALUE>>8);                      // shift the register right by 8 bits
+	UBRRL = (uint8_t)UBRR_VALUE;                           // set baud rate
 	UCSRB|= (1<<TXEN)|(1<<RXEN);    // enable receiver and transmitter
 	//UCSR0C|= (1<<UCSZ00)|(1<<UCSZ01);   // 8bit data format
 
@@ -23,8 +23,7 @@ void USARTInit(void)
  * Send character c down the UART Tx, wait until tx holding register
  * is empty.
  */
-int
-uart_putchar(char c, FILE *stream)
+int uart_putchar(char c, FILE *stream)
 {
 
   if (c == '\a')

@@ -12,7 +12,6 @@
 //#include <stdlib.h>
 #include <avr/interrupt.h>
 //#include <avr/pgmspace.h>
-#include <avr/sleep.h>
 
 #include <ctype.h>
 #include <stdint.h>
@@ -36,7 +35,7 @@
 #define ML1S PB0
 
 #define pMP1S PORTD
-#define MPS1S PD6
+#define MP1S PD6
 
 #define pML2S PORTD
 #define ML2S PD7
@@ -57,46 +56,67 @@
 #define PWM1 PB1
 
 #define pPWM2 PORTB
-#define PWM2 PCB2
+#define PWM2 PB2
 
 #define pIRFREQ PORTB
 #define IRFREQ PB3
 
 static FILE uart_str = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
 
+uint32_t enkL,enkP;
+
+uint8_t motDirL,motDirP;
+uint16_t motSpeedL,motSpeedP;
 
 
 /***************************************************/
 int main(void)
 {
 
-	//nastavit výstupy
-	//DDRB = (1<<PB0) | (1<<PB1) | (1<<PB2);
+	//set outputs
+	DDRC = (1<<Sel0) | (1<<Sel1) | (1<<Sel2);
 
-	//natavit výstupy
-	//DDRD =1<<PD5;
+	DDRB = (1<<ML1S) | (1<<CTXIR2) | (1<<PWM1) | (1<<PWM2) | (1<<IRFREQ);
 
-	//natavit výstupy
-	//DDRC =(1<<PC2) | (1<<PC3);
+	DDRD = (1<<MP1S) | (1<<ML2S) | (1<<MP2S) | (1<<CTXIR1);
 
 	// Timer/Counter 0 initialization
 	// Clock source: System Clock
-	// Clock value: 15,625 kHz
-	TCCR0=0x05;
+	// Clock value: 15 Hz
+	TCCR0=(1<<CS02) | (1<<CS00);//div 1024
 	TCNT0=0x00;
-
 	// Timer(s)/Counter(s) Interrupt(s) initialization
-	TIMSK=0x01;
+	TIMSK=(1<<TOIE0);//overflow enable
 
-	//external interrupt INT0 - accel
-	//GICR=(1<<INT0);
-	//MCUCR = (1<<ISC01);//pro accel sestupna
+	// Timer/Counter 1 initialization
+	// Clock source: System Clock
+	// Clock value: 244 Hz
+	// Mode: Fast PWM 8 bit TOP, non-inverting
 
-	// Use the Power Down sleep mode
-	//set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+	TCCR1A = (1<<WGM10) | (1<<COM1A1)| (1<<COM1B1);
+	TCCR1B = (1<<CS11) | (1<<CS10);//div 64
 
-	//init interrupt
-	sei();
+	TCNT1=0x00;
+	OCR1A=0x19;//10%
+	OCR1B=0x19;//10%
+
+	// Timer/Counter 2 initialization
+	// Clock source: System Clock
+	// Clock value: 244 Hz
+	// Mode: Fast PWM 8 bit TOP, non-inverting
+
+	TCCR2 = (1<<WGM21) | (1<<WGM20) | (1<<COM21) | (1<<CS22);
+
+	TCNT2=0x00;
+	OCR2=64;//25% - 500us
+
+
+	//external interrupt INT0 and INT1
+	GICR=(1<<INT1)|(1<<INT0);
+	MCUCR = (1<<ISC11) | (1<<ISC01);//react on falling edge
+
+	// ADC initialization
+	ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS0); //division factor:32
 
 	//Initialize USART
 	USARTInit();
@@ -107,8 +127,10 @@ int main(void)
 
 	if(DEBUG)printf("START!\n");
 
-	while(1){//lze blokovat pomocí delay
+	sei();
 
+	while(1){
+		printf("L:%lu P:%lu\n",enkL,enkP);
 	}
 
 return 0;
@@ -120,10 +142,10 @@ ISR(TIMER0_OVF_vect)
 
 }
 ISR(INT0_vect){
-
+	enkL++;
 }
 ISR(INT1_vect){
-
+	enkP++;
 }
 
 void _delay_s(int sec){
