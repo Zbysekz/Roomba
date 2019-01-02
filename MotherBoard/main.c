@@ -28,8 +28,8 @@
 #define pSel1 PORTC
 #define Sel1 PC2
 
-#define pSel2 PORTC
-#define Sel2 PC6
+#define pSel2 PORTD
+#define Sel2 PD4
 
 #define pML1S PORTB
 #define ML1S PB0
@@ -49,7 +49,7 @@
 #define pCTXIR2 PORTB
 #define CTXIR2 PB5
 
-#define pAUXWHEEL PORTB
+#define pAUXWHEEL PINB
 #define AUXWHEEL PB4
 
 #define pPWM1 PORTB
@@ -68,17 +68,19 @@ uint32_t enkL,enkP;
 uint8_t motDirL,motDirP;
 uint16_t motSpeedL,motSpeedP;
 
+uint8_t sideSensors[6],cliffSensors[4],bumpSensors[2],dirtSensor,motorPswitch,motorLswitch,auxWheelSig;
+
 
 /***************************************************/
 int main(void)
 {
 
 	//set outputs
-	DDRC = (1<<Sel0) | (1<<Sel1) | (1<<Sel2);
+	DDRC = (1<<Sel0) | (1<<Sel1);
 
 	DDRB = (1<<ML1S) | (1<<CTXIR2) | (1<<PWM1) | (1<<PWM2) | (1<<IRFREQ);
 
-	DDRD = (1<<MP1S) | (1<<ML2S) | (1<<MP2S) | (1<<CTXIR1);
+	DDRD = (1<<MP1S) | (1<<ML2S) | (1<<MP2S) | (1<<CTXIR1) | (1<<Sel2);
 
 	// Timer/Counter 0 initialization
 	// Clock source: System Clock
@@ -108,7 +110,7 @@ int main(void)
 	TCCR2 = (1<<WGM21) | (1<<WGM20) | (1<<COM21) | (1<<CS22);
 
 	TCNT2=0x00;
-	OCR2=64;//25% - 500us
+	OCR2=191;//75% - 500us negative puls
 
 
 	//external interrupt INT0 and INT1
@@ -130,7 +132,36 @@ int main(void)
 	sei();
 
 	while(1){
-		printf("L:%lu P:%lu\n",enkL,enkP);
+		//printf("L:%lu P:%lu\n",enkL,enkP);
+
+		setBit(&pCTXIR1,CTXIR1);
+		setBit(&pCTXIR2,CTXIR2);
+
+		ReadMUX();
+
+		auxWheelSig = getBit(pAUXWHEEL,AUXWHEEL);
+
+
+		printf("side:");
+
+		for(int i=0;i<6;i++){
+			printf(" %d,",sideSensors[i]);
+		}
+
+		printf("cliff:");
+
+		for(int i=0;i<4;i++){
+			printf(" %d,",cliffSensors[i]);
+		}
+
+		printf("bump1: %d,bump2: %d",bumpSensors[0],bumpSensors[1]);
+
+		printf("dirt: %d,motorL_SW: %d,motorP_SW: %d, auxwheel:%d",dirtSensor,motorLswitch,motorPswitch,auxWheelSig);
+
+		printf("\n");
+
+		_delay_s(3);
+
 	}
 
 return 0;
@@ -146,6 +177,189 @@ ISR(INT0_vect){
 }
 ISR(INT1_vect){
 	enkP++;
+}
+
+void ReadMUX(){
+
+	clearBit(&pSel0,Sel0);
+	clearBit(&pSel1,Sel1);
+	clearBit(&pSel2,Sel2);
+
+	_delay_ms(1);
+
+	sideSensors[3] = ReadADC(0);//MUX1
+
+	setBit(&pSel0,Sel0);
+	clearBit(&pSel1,Sel1);
+	clearBit(&pSel2,Sel2);
+
+	_delay_ms(1);
+
+	sideSensors[4] = ReadADC(0);//MUX1
+
+	clearBit(&pSel0,Sel0);
+	setBit(&pSel1,Sel1);
+	clearBit(&pSel2,Sel2);
+
+	_delay_ms(1);
+
+	sideSensors[5] = ReadADC(0);//MUX1
+
+	setBit(&pSel0,Sel0);
+	setBit(&pSel1,Sel1);
+	clearBit(&pSel2,Sel2);
+
+	_delay_ms(1);
+
+	sideSensors[2] = ReadADC(0);//MUX1
+
+	clearBit(&pSel0,Sel0);
+	clearBit(&pSel1,Sel1);
+	setBit(&pSel2,Sel2);
+
+	_delay_ms(1);
+
+	sideSensors[1] = ReadADC(0);//MUX1
+
+	setBit(&pSel0,Sel0);
+	clearBit(&pSel1,Sel1);
+	setBit(&pSel2,Sel2);
+
+	_delay_ms(1);
+
+	sideSensors[0] = ReadADC(0);//MUX1
+
+	clearBit(&pSel0,Sel0);
+	setBit(&pSel1,Sel1);
+	setBit(&pSel2,Sel2);
+
+	_delay_ms(1);
+
+	motorPswitch = ReadADC(0);//MUX1
+
+	setBit(&pSel0,Sel0);
+	setBit(&pSel1,Sel1);
+	setBit(&pSel2,Sel2);
+
+	_delay_ms(1);
+
+	motorLswitch = ReadADC(0);//MUX1
+
+	/////////////////////////////////////
+	clearBit(&pSel0,Sel0);
+	clearBit(&pSel1,Sel1);
+	clearBit(&pSel2,Sel2);
+
+	_delay_ms(1);
+
+	cliffSensors[3] = ReadADC(3);//MUX2
+
+	setBit(&pSel0,Sel0);
+	clearBit(&pSel1,Sel1);
+	clearBit(&pSel2,Sel2);
+
+	_delay_ms(1);
+
+	bumpSensors[0] = ReadADC(3);//MUX2
+
+	clearBit(&pSel0,Sel0);
+	setBit(&pSel1,Sel1);
+	clearBit(&pSel2,Sel2);
+
+	_delay_ms(1);
+
+	bumpSensors[1] = ReadADC(3);//MUX2
+
+	setBit(&pSel0,Sel0);
+	setBit(&pSel1,Sel1);
+	clearBit(&pSel2,Sel2);
+
+	_delay_ms(1);
+
+	cliffSensors[2] = ReadADC(3);//MUX2
+
+	clearBit(&pSel0,Sel0);
+	clearBit(&pSel1,Sel1);
+	setBit(&pSel2,Sel2);
+
+	_delay_ms(1);
+
+	dirtSensor = ReadADC(3);//MUX2
+
+	setBit(&pSel0,Sel0);
+	clearBit(&pSel1,Sel1);
+	setBit(&pSel2,Sel2);
+
+	_delay_ms(1);
+
+	cliffSensors[0] = ReadADC(3);//MUX2
+
+	////////////RESERVE Y6/////////////////////
+
+	setBit(&pSel0,Sel0);
+	setBit(&pSel1,Sel1);
+	setBit(&pSel2,Sel2);
+
+	_delay_ms(1);
+
+
+	cliffSensors[1] = ReadADC(3);//MUX2
+
+
+}
+
+
+void MotorL_fwd(uint8_t speed){//0-100%
+	OCR1A=255-(uint16_t)(speed)*255/100;//0-255
+
+	setBit(&pML1S,ML1S);
+	clearBit(&pML2S,ML2S);
+}
+void MotorL_bck(uint8_t speed){//0-100%
+	OCR1A=255-(uint16_t)(speed)*255/100;//0-255
+
+	setBit(&pML2S,ML2S);
+	clearBit(&pML1S,ML1S);
+}
+void MotorP_bck(uint8_t speed){//0-100%
+	OCR1B=255-(uint16_t)(speed)*255/100;//0-255
+
+	setBit(&pMP1S,MP1S);
+	clearBit(&pMP2S,MP2S);
+}
+void MotorP_fwd(uint8_t speed){//0-100%
+	OCR1B=255-(uint16_t)(speed)*255/100;//0-255
+
+	setBit(&pMP2S,MP2S);
+	clearBit(&pMP1S,MP1S);
+}
+
+void MotorP_stop(){
+	OCR1B=0;//0-255
+
+	clearBit(&pMP2S,MP2S);
+	clearBit(&pMP1S,MP1S);
+}
+void MotorL_stop(){
+	OCR1A=0;//0-255
+
+	clearBit(&pML2S,ML2S);
+	clearBit(&pML1S,ML1S);
+}
+
+// Read the 8 most significant bits
+// of the AD conversion result
+uint16_t ReadADC(uint8_t adc_input) {//read voltages in 0,01V
+  ADMUX = adc_input | (1 << REFS0);
+// Delay needed for the stabilization of the ADC input voltage
+  _delay_us(10);
+// Start the AD conversion
+  ADCSRA |= (1 << ADSC); // Start conversion
+// Wait for the AD conversion to complete
+  while (ADCSRA & (1 << ADSC))
+    ;
+  ADCSRA |= 0x10;
+  return ADCW;
 }
 
 void _delay_s(int sec){
