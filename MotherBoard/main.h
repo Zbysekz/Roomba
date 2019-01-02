@@ -17,3 +17,5 @@ void MotorL_stop();
 uint16_t ReadADC(uint8_t adc_input);
 
 void ReadMUX();
+
+uint8_t getModulatedValue(uint8_t ADC_channel);

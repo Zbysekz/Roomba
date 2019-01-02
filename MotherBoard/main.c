@@ -9,9 +9,8 @@
 #include <util/delay.h>
 #include "main.h"
 #include "uart.h"
-//#include <stdlib.h>
+#include "twi.h"
 #include <avr/interrupt.h>
-//#include <avr/pgmspace.h>
 
 #include <ctype.h>
 #include <stdint.h>
@@ -19,7 +18,7 @@
 
 /***************************************************/
 
-#define DEBUG 1	// show debug messages on UART?
+#define DEBUG 0	// show debug messages on UART? - warning! affect functionality of CTXIR1 pin(RxD)
 
 
 #define pSel0 PORTC
@@ -61,6 +60,7 @@
 #define pIRFREQ PORTB
 #define IRFREQ PB3
 
+
 static FILE uart_str = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
 
 uint32_t enkL,enkP;
@@ -69,6 +69,7 @@ uint8_t motDirL,motDirP;
 uint16_t motSpeedL,motSpeedP;
 
 uint8_t sideSensors[6],cliffSensors[4],bumpSensors[2],dirtSensor,motorPswitch,motorLswitch,auxWheelSig;
+
 
 
 /***************************************************/
@@ -117,22 +118,26 @@ int main(void)
 	GICR=(1<<INT1)|(1<<INT0);
 	MCUCR = (1<<ISC11) | (1<<ISC01);//react on falling edge
 
+
+	TWI_Init();
+
 	// ADC initialization
 	ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS0); //division factor:32
 
 	//Initialize USART
-	USARTInit();
+	if(DEBUG)USARTInit();
 
 	_delay_s(1);
 
 	stdout = &uart_str;
+
+	InitCRC();//calculate table for fast CRC calculation
 
 	if(DEBUG)printf("START!\n");
 
 	sei();
 
 	while(1){
-		//printf("L:%lu P:%lu\n",enkL,enkP);
 
 		setBit(&pCTXIR1,CTXIR1);
 		setBit(&pCTXIR2,CTXIR2);
@@ -160,8 +165,7 @@ int main(void)
 
 		printf("\n");
 
-		_delay_s(3);
-
+		_delay_ms(100);
 	}
 
 return 0;
@@ -187,7 +191,7 @@ void ReadMUX(){
 
 	_delay_ms(1);
 
-	sideSensors[3] = ReadADC(0);//MUX1
+	sideSensors[3] = getModulatedValue(0);//MUX1
 
 	setBit(&pSel0,Sel0);
 	clearBit(&pSel1,Sel1);
@@ -195,7 +199,7 @@ void ReadMUX(){
 
 	_delay_ms(1);
 
-	sideSensors[4] = ReadADC(0);//MUX1
+	sideSensors[4] = getModulatedValue(0);//MUX1
 
 	clearBit(&pSel0,Sel0);
 	setBit(&pSel1,Sel1);
@@ -203,7 +207,7 @@ void ReadMUX(){
 
 	_delay_ms(1);
 
-	sideSensors[5] = ReadADC(0);//MUX1
+	sideSensors[5] = getModulatedValue(0);//MUX1
 
 	setBit(&pSel0,Sel0);
 	setBit(&pSel1,Sel1);
@@ -211,7 +215,7 @@ void ReadMUX(){
 
 	_delay_ms(1);
 
-	sideSensors[2] = ReadADC(0);//MUX1
+	sideSensors[2] = getModulatedValue(0);//MUX1
 
 	clearBit(&pSel0,Sel0);
 	clearBit(&pSel1,Sel1);
@@ -219,7 +223,7 @@ void ReadMUX(){
 
 	_delay_ms(1);
 
-	sideSensors[1] = ReadADC(0);//MUX1
+	sideSensors[1] = getModulatedValue(0);//MUX1
 
 	setBit(&pSel0,Sel0);
 	clearBit(&pSel1,Sel1);
@@ -227,7 +231,7 @@ void ReadMUX(){
 
 	_delay_ms(1);
 
-	sideSensors[0] = ReadADC(0);//MUX1
+	sideSensors[0] = getModulatedValue(0);//MUX1
 
 	clearBit(&pSel0,Sel0);
 	setBit(&pSel1,Sel1);
@@ -235,7 +239,7 @@ void ReadMUX(){
 
 	_delay_ms(1);
 
-	motorPswitch = ReadADC(0);//MUX1
+	motorPswitch = getModulatedValue(0);//MUX1
 
 	setBit(&pSel0,Sel0);
 	setBit(&pSel1,Sel1);
@@ -243,7 +247,7 @@ void ReadMUX(){
 
 	_delay_ms(1);
 
-	motorLswitch = ReadADC(0);//MUX1
+	motorLswitch = getModulatedValue(0);//MUX1
 
 	/////////////////////////////////////
 	clearBit(&pSel0,Sel0);
@@ -252,7 +256,7 @@ void ReadMUX(){
 
 	_delay_ms(1);
 
-	cliffSensors[3] = ReadADC(3);//MUX2
+	cliffSensors[3] = getModulatedValue(3);//MUX2
 
 	setBit(&pSel0,Sel0);
 	clearBit(&pSel1,Sel1);
@@ -260,7 +264,7 @@ void ReadMUX(){
 
 	_delay_ms(1);
 
-	bumpSensors[0] = ReadADC(3);//MUX2
+	bumpSensors[0] = getModulatedValue(3);//MUX2
 
 	clearBit(&pSel0,Sel0);
 	setBit(&pSel1,Sel1);
@@ -268,7 +272,7 @@ void ReadMUX(){
 
 	_delay_ms(1);
 
-	bumpSensors[1] = ReadADC(3);//MUX2
+	bumpSensors[1] = getModulatedValue(3);//MUX2
 
 	setBit(&pSel0,Sel0);
 	setBit(&pSel1,Sel1);
@@ -276,7 +280,7 @@ void ReadMUX(){
 
 	_delay_ms(1);
 
-	cliffSensors[2] = ReadADC(3);//MUX2
+	cliffSensors[2] = getModulatedValue(3);//MUX2
 
 	clearBit(&pSel0,Sel0);
 	clearBit(&pSel1,Sel1);
@@ -284,7 +288,7 @@ void ReadMUX(){
 
 	_delay_ms(1);
 
-	dirtSensor = ReadADC(3);//MUX2
+	dirtSensor = getModulatedValue(3);//MUX2
 
 	setBit(&pSel0,Sel0);
 	clearBit(&pSel1,Sel1);
@@ -292,7 +296,7 @@ void ReadMUX(){
 
 	_delay_ms(1);
 
-	cliffSensors[0] = ReadADC(3);//MUX2
+	cliffSensors[0] = getModulatedValue(3);//MUX2
 
 	////////////RESERVE Y6/////////////////////
 
@@ -303,11 +307,31 @@ void ReadMUX(){
 	_delay_ms(1);
 
 
-	cliffSensors[1] = ReadADC(3);//MUX2
+	cliffSensors[1] = getModulatedValue(3);//MUX2
 
 
 }
 
+uint8_t getModulatedValue(uint8_t ADC_channel){
+	uint16_t measuredMin,measuredMax,value;
+
+	measuredMin=65535;
+	measuredMax=0;
+
+	for(int i=0;i<35;i++){// more than ~2ms
+		value = ReadADC(ADC_channel);//takes at least 10 us
+
+		if(value < measuredMin) measuredMin = value;
+		if(value > measuredMax) measuredMax = value;
+	}
+
+	value = measuredMax-measuredMin;
+
+	if(value>255)value=255;
+
+	return value;
+
+}
 
 void MotorL_fwd(uint8_t speed){//0-100%
 	OCR1A=255-(uint16_t)(speed)*255/100;//0-255
