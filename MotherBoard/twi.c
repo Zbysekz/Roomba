@@ -210,19 +210,24 @@ void UpdateTxData(){//called at the beginning and every time after CRC value is 
 	else
 		buff=txBuffer;
 
-	for(int i=0;i<6;i++)
-		buff[0+i]=sideSensors[i];
-	for(int i=0;i<4;i++)
-		buff[6+i]=cliffSensors[i];
 
-	buff[10]=bumpSensors[0];
-	buff[11]=bumpSensors[1];
-	buff[12]=dirtSensor;
-	buff[13]=motorLswitch*0x01+motorRswitch*0x02+auxWheelSig*0x04;
+	buff[0]=sideSensors[1];//from left to right
+	buff[1]=sideSensors[3];
+	buff[2]=sideSensors[4];
+	buff[3]=sideSensors[0];
+	buff[4]=sideSensors[2];
+	buff[5]=sideSensors[5];
 
-	/*for(int i=0;i<14;i++)
-		buff[i]=qq;
-	qq++;*/
+	buff[6]=cliffSensors[0];//from left to right
+	buff[7]=cliffSensors[1];
+	buff[8]=cliffSensors[2];
+	buff[9]=cliffSensors[3];
+
+	buff[10]=dirtSensor;
+	buff[11]=motorLswitch*0x01+motorRswitch*0x02+auxWheelSig*0x04+bumpSensorL*0x08+bumpSensorR*0x10;
+	buff[12]=enkL;
+	buff[13]=enkR;
+
 	if(buffId==0)
 		txCRC2=CalculateCRC(buff,14);
 	else

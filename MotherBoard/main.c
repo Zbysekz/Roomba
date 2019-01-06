@@ -18,7 +18,7 @@
 
 /***************************************************/
 
-#define DEBUG 0	// show debug messages on UART? - warning! affect functionality of CTXIR1 pin(RxD)
+//#define DEBUG	// show debug messages on UART?
 
 
 #define pSel0 PORTC
@@ -61,16 +61,15 @@
 #define IRFREQ PB3
 
 
-//static FILE uart_str = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
-
-uint32_t enkL,enkP;
+uint32_t enkL,enkR;
 
 int8_t cmdMotL,cmdMotR;
 
-uint8_t sideSensors[6],cliffSensors[4],bumpSensors[2],dirtSensor,motorRswitch,motorLswitch,auxWheelSig;
+uint8_t sideSensors[6],cliffSensors[4],bumpSensorL,bumpSensorR,dirtSensor,motorRswitch,motorLswitch,auxWheelSig;
 
+#ifdef DEBUG
 static FILE uart_str = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
-
+#endif
 
 /***************************************************/
 int main(void)
@@ -124,16 +123,18 @@ int main(void)
 	// ADC initialization
 	ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS0); //division factor:32
 
-	//Initialize USART
-	if(DEBUG)USARTInit();
+	#ifdef DEBUG
+	USARTInit();
+	stdout = &uart_str;
+	#endif
 
 	_delay_s(1);
 
-	stdout = &uart_str;
-
 	InitCRC();//calculate table for fast CRC calculation
 
-	//if(DEBUG)printf("START!\n");
+	#ifdef DEBUG
+	printf("START!\n");
+	#endif
 
 	sei();
 
@@ -141,12 +142,20 @@ int main(void)
 
 		UpdateTxData();
 
-		setBit(&pCTXIR1,CTXIR1);
-		setBit(&pCTXIR2,CTXIR2);
-
 		ReadMUX();
 
+
+		//now stop IRFREQ (OC2)reset IRFREQ and set CTXIR1
+		TCCR2 = 0;
+		clearBit(&pIRFREQ,IRFREQ);
+		setBit(&pCTXIR1,CTXIR1);
+		clearBit(&pCTXIR2,CTXIR2);
+		_delay_ms(10);
 		auxWheelSig = getBit(pAUXWHEEL,AUXWHEEL);
+
+		TCCR2 = (1<<WGM21) | (1<<WGM20) | (1<<COM21) | (1<<CS22);
+		_delay_ms(1);
+		//////////////////////
 
 		if(cmdMotL==0)
 			MotorL_stop();
@@ -197,134 +206,131 @@ ISR(INT0_vect){
 	enkL++;
 }
 ISR(INT1_vect){
-	enkP++;
+	enkR++;
 }
 
 void ReadMUX(){
 
-	clearBit(&pSel0,Sel0);
-	clearBit(&pSel1,Sel1);
-	clearBit(&pSel2,Sel2);
+/////////////////////////////FIRST PACK OF IRs (for preventing beam interference)
+	clearBit(&pCTXIR1,CTXIR1);
+	setBit(&pCTXIR2,CTXIR2);
 
-	_delay_ms(1);
-
-	sideSensors[3] = getModulatedValue(0);//MUX1
-
-	setBit(&pSel0,Sel0);
-	clearBit(&pSel1,Sel1);
-	clearBit(&pSel2,Sel2);
-
-	_delay_ms(1);
-
-	sideSensors[4] = getModulatedValue(0);//MUX1
-
-	clearBit(&pSel0,Sel0);
-	setBit(&pSel1,Sel1);
-	clearBit(&pSel2,Sel2);
-
-	_delay_ms(1);
-
-	sideSensors[5] = getModulatedValue(0);//MUX1
-
-	setBit(&pSel0,Sel0);
-	setBit(&pSel1,Sel1);
-	clearBit(&pSel2,Sel2);
-
-	_delay_ms(1);
-
-	sideSensors[2] = getModulatedValue(0);//MUX1
-
-	clearBit(&pSel0,Sel0);
+	clearBit(&pSel0,Sel0);//4
 	clearBit(&pSel1,Sel1);
 	setBit(&pSel2,Sel2);
-
 	_delay_ms(1);
 
 	sideSensors[1] = getModulatedValue(0);//MUX1
 
-	setBit(&pSel0,Sel0);
-	clearBit(&pSel1,Sel1);
-	setBit(&pSel2,Sel2);
-
-	_delay_ms(1);
-
-	sideSensors[0] = getModulatedValue(0);//MUX1
-
-	clearBit(&pSel0,Sel0);
-	setBit(&pSel1,Sel1);
-	setBit(&pSel2,Sel2);
-
-	_delay_ms(1);
-
-	motorRswitch = getModulatedValue(0);//MUX1
-
-	setBit(&pSel0,Sel0);
-	setBit(&pSel1,Sel1);
-	setBit(&pSel2,Sel2);
-
-	_delay_ms(1);
-
-	motorLswitch = getModulatedValue(0);//MUX1
-
-	/////////////////////////////////////
-	clearBit(&pSel0,Sel0);
+	setBit(&pSel0,Sel0);//1
 	clearBit(&pSel1,Sel1);
 	clearBit(&pSel2,Sel2);
+	_delay_ms(1);
 
+	sideSensors[4] = getModulatedValue(0);//MUX1
+
+	setBit(&pSel0,Sel0);//3
+	setBit(&pSel1,Sel1);
+	clearBit(&pSel2,Sel2);
+	_delay_ms(1);
+
+	sideSensors[2] = getModulatedValue(0);//MUX1
+
+	/////////////////////////////////////
+
+	clearBit(&pSel0,Sel0);//0
+	clearBit(&pSel1,Sel1);
+	clearBit(&pSel2,Sel2);
 	_delay_ms(1);
 
 	cliffSensors[3] = getModulatedValue(3);//MUX2
 
-	setBit(&pSel0,Sel0);
+	setBit(&pSel0,Sel0);//1
 	clearBit(&pSel1,Sel1);
 	clearBit(&pSel2,Sel2);
-
 	_delay_ms(1);
 
-	bumpSensors[0] = getModulatedValue(3);//MUX2
+	bumpSensorR = getModulatedValue(3)>200?1:0;//MUX2
 
-	clearBit(&pSel0,Sel0);
+	clearBit(&pSel0,Sel0);//2
 	setBit(&pSel1,Sel1);
 	clearBit(&pSel2,Sel2);
-
 	_delay_ms(1);
 
-	bumpSensors[1] = getModulatedValue(3);//MUX2
+	bumpSensorL = getModulatedValue(3)>200?1:0;//MUX2
 
-	setBit(&pSel0,Sel0);
+	setBit(&pSel0,Sel0);//3
 	setBit(&pSel1,Sel1);
 	clearBit(&pSel2,Sel2);
-
 	_delay_ms(1);
 
 	cliffSensors[2] = getModulatedValue(3);//MUX2
 
-	clearBit(&pSel0,Sel0);
+	clearBit(&pSel0,Sel0);//4
 	clearBit(&pSel1,Sel1);
 	setBit(&pSel2,Sel2);
-
 	_delay_ms(1);
 
 	dirtSensor = getModulatedValue(3);//MUX2
 
-	setBit(&pSel0,Sel0);
+	setBit(&pSel0,Sel0);//5
 	clearBit(&pSel1,Sel1);
 	setBit(&pSel2,Sel2);
-
 	_delay_ms(1);
 
 	cliffSensors[0] = getModulatedValue(3);//MUX2
 
 	////////////RESERVE Y6/////////////////////
 
-	setBit(&pSel0,Sel0);
+	setBit(&pSel0,Sel0);//7
 	setBit(&pSel1,Sel1);
 	setBit(&pSel2,Sel2);
-
 	_delay_ms(1);
 
 
 	cliffSensors[1] = getModulatedValue(3);//MUX2
+
+/////////////////////////////SECOND PACK OF IRs (for preventing beam interference)
+	setBit(&pCTXIR1,CTXIR1);
+	clearBit(&pCTXIR2,CTXIR2);
+
+	clearBit(&pSel0,Sel0);//0
+	clearBit(&pSel1,Sel1);
+	clearBit(&pSel2,Sel2);
+	_delay_ms(1);
+
+	sideSensors[3] = getModulatedValue(0);//MUX1
+
+	setBit(&pSel0,Sel0);//5
+	clearBit(&pSel1,Sel1);
+	setBit(&pSel2,Sel2);
+	_delay_ms(1);
+
+	sideSensors[0] = getModulatedValue(0);//MUX1
+
+	clearBit(&pSel0,Sel0);//2
+	setBit(&pSel1,Sel1);
+	clearBit(&pSel2,Sel2);
+	_delay_ms(1);
+
+	sideSensors[5] = getModulatedValue(0);//MUX1
+
+
+	//NOT DEPENDENT ON CTXIR
+
+	clearBit(&pSel0,Sel0);//6
+	setBit(&pSel1,Sel1);
+	setBit(&pSel2,Sel2);
+	_delay_ms(1);
+
+	motorRswitch = ReadADC(0)>200?0:1;//MUX1
+
+	setBit(&pSel0,Sel0);//7
+	setBit(&pSel1,Sel1);
+	setBit(&pSel2,Sel2);
+	_delay_ms(1);
+
+	motorLswitch = ReadADC(0)>200?0:1;//MUX1
 
 
 }
