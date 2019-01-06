@@ -11,12 +11,12 @@
 typedef uint8_t crc;
 
 void TWI_Init();
-void TWI_slave_action(uint8_t rw_status);
+void TWI_SlaveAction(uint8_t rw_status);
 
 void ValidateData(uint8_t crc);
 void UpdateTxData();
 
 void InitCRC(void);
-crc CalculateCRC(uint8_t const message[], int nBytes);
+crc CalculateCRC(uint8_t message[], int nBytes);
 
 #endif /* TWI_H_ */

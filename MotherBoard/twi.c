@@ -8,12 +8,15 @@
 #include <compat/twi.h>
 #include <avr/interrupt.h>
 #include "twi.h"
+#include "main.h"
+
 
 #define TWI_SLAVE_ADDR       0x4E
-#define BUFFSIZE 50
+#define BUFFSIZE 20
 
 uint8_t rxBuffer[BUFFSIZE];
 uint8_t txBuffer[BUFFSIZE];
+uint8_t txBuffer2[BUFFSIZE];
 
 
 volatile uint8_t i2c_state;
@@ -21,6 +24,10 @@ volatile uint8_t twi_status;
 
 volatile uint8_t regaddr; // Store the Requested Register Address
 volatile uint8_t regdata; // Store the Register Address Data
+
+volatile uint16_t TWI_error;
+
+volatile uint8_t txCRC,txCRC2,updateTX,buffId,buffId2;
 
 ///////CRC//////////////
 
@@ -32,10 +39,10 @@ volatile uint8_t regdata; // Store the Register Address Data
 #define WIDTH  (8 * sizeof(crc))
 #define TOPBIT (1 << (WIDTH - 1))
 
-#define POLYNOMIAL 0xD8  /* 11011 followed by 0's */
+#define POLYNOMIAL 0x07
 //////////////////////////
 
-static crc crcTable[256];
+crc crcTable[256];
 
 void InitCRC(void)
 {
@@ -68,7 +75,7 @@ void InitCRC(void)
 
 }   /* crcInit() */
 
-crc CalculateCRC(uint8_t const message[], int nBytes)
+crc CalculateCRC( uint8_t message[], int nBytes)
 {
     uint8_t data;
     crc remainder = 0;
@@ -76,7 +83,7 @@ crc CalculateCRC(uint8_t const message[], int nBytes)
     for (int byte = 0; byte < nBytes; ++byte)
     {
         data = message[byte] ^ (remainder >> (WIDTH - 8));
-        remainder = crcTable[data] ^ (remainder << 8);
+        remainder = (uint8_t)(crcTable[data] ^ (remainder << 8));
     }
     //The final remainder is the CRC.
     return (remainder);
@@ -93,6 +100,9 @@ void TWI_Init(){
 	// Initial Variable Used
 	regaddr=0;
 	regdata=0;
+
+	updateTX=1;//update tx data for first time
+	buffId=0;
 }
 
 
@@ -103,13 +113,20 @@ void TWI_SlaveAction(uint8_t rw_status)
 			regdata = 66;
 	}else if(regaddr == 200){//master is sending CRC to us or wants CRC of our data
 		if (rw_status == 0){
-			regdata = CalculateCRC(txBuffer,5);
-			UpdateTxData();//update next data
+			if(buffId)//switch between two buffers to prevent data corruption while updating
+				regdata = txCRC2;
+			else
+				regdata = txCRC;
+			updateTX=1;//update next data
+			buffId=buffId2;
 		}else
 			ValidateData(regdata);
 	}else if(regaddr>0 && regaddr<BUFFSIZE+1){
 		if(rw_status == 0){ //read
-			regdata = txBuffer[regaddr-1];
+			if(buffId)//switch between two buffers to prevent data corruption while updating
+				regdata = txBuffer2[regaddr-1];
+			else
+				regdata = txBuffer[regaddr-1];
 		}else{//write
 			rxBuffer[regaddr-1] = regdata;
 		}
@@ -123,6 +140,8 @@ ISR(TWI_vect)
 
     // Get TWI Status Register, mask the prescaler bits (TWPS1,TWPS0)
     twi_status=TWSR & 0xF8;
+
+    //printf("stat: %d",twi_status);
 
     switch(twi_status) {
         case TW_SR_SLA_ACK: // 0x60: SLA+W received, ACK returned
@@ -149,15 +168,20 @@ ISR(TWI_vect)
         case TW_ST_SLA_ACK: // 0xA8: SLA+R received, ACK returned
         case TW_ST_DATA_ACK:    // 0xB8: data transmitted, ACK received
             if (i2c_state == 1) {
+
             	TWI_SlaveAction(0);    // Call Read I2C Action (rw_status = 0)
+
                 TWDR = regdata;     // Store data in TWDR register
                 i2c_state = 0;      // Reset I2C State
             }
             break;
 
+        case TW_BUS_ERROR:  // 0x00: illegal start or stop condition
+			TWCR |= (1<<TWSTO)|(1<<TWINT);//recover from this state
+			TWI_error++;
+			return;//EXIT
         case TW_ST_DATA_NACK:   // 0xC0: data transmitted, NACK received
         case TW_ST_LAST_DATA:   // 0xC8: last data byte transmitted, ACK received
-        case TW_BUS_ERROR:  // 0x00: illegal start or stop condition
         default:
             i2c_state = 0;  // Back to the Begining State
     }
@@ -169,22 +193,44 @@ ISR(TWI_vect)
 
 void ValidateData(uint8_t crc){
 	//validate if received data are ok
-	if(CalculateCRC(rxBuffer,5) == crc){
+	if(CalculateCRC(rxBuffer,2) == crc){
 		//we can now copy rxBuffer data to specific vars
-		;
+		cmdMotL=rxBuffer[0];
+		cmdMotR=rxBuffer[1];
 	}
 }
 
 void UpdateTxData(){//called at the beginning and every time after CRC value is read by master
+	if(updateTX==0)return;
 
-	txBuffer[0]=10;
-	txBuffer[1]=11;
-	txBuffer[2]=12;
-	txBuffer[3]=13;
-	txBuffer[4]=14;
+	uint8_t *buff;
 
-	//sideSensors[6],cliffSensors[4],bumpSensors[2],dirtSensor,motorPswitch,motorLswitch,auxWheelSig;
+	if(buffId==0)
+		buff=txBuffer2;
+	else
+		buff=txBuffer;
 
+	for(int i=0;i<6;i++)
+		buff[0+i]=sideSensors[i];
+	for(int i=0;i<4;i++)
+		buff[6+i]=cliffSensors[i];
+
+	buff[10]=bumpSensors[0];
+	buff[11]=bumpSensors[1];
+	buff[12]=dirtSensor;
+	buff[13]=motorLswitch*0x01+motorRswitch*0x02+auxWheelSig*0x04;
+
+	/*for(int i=0;i<14;i++)
+		buff[i]=qq;
+	qq++;*/
+	if(buffId==0)
+		txCRC2=CalculateCRC(buff,14);
+	else
+		txCRC=CalculateCRC(buff,14);
+
+	buffId2=buffId?0:1;		//now the TWI interrupt routine can read the updated one
+
+	updateTX=0;
 }
 
 

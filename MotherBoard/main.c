@@ -61,15 +61,15 @@
 #define IRFREQ PB3
 
 
-static FILE uart_str = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
+//static FILE uart_str = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
 
 uint32_t enkL,enkP;
 
-uint8_t motDirL,motDirP;
-uint16_t motSpeedL,motSpeedP;
+int8_t cmdMotL,cmdMotR;
 
-uint8_t sideSensors[6],cliffSensors[4],bumpSensors[2],dirtSensor,motorPswitch,motorLswitch,auxWheelSig;
+uint8_t sideSensors[6],cliffSensors[4],bumpSensors[2],dirtSensor,motorRswitch,motorLswitch,auxWheelSig;
 
+static FILE uart_str = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
 
 
 /***************************************************/
@@ -133,11 +133,13 @@ int main(void)
 
 	InitCRC();//calculate table for fast CRC calculation
 
-	if(DEBUG)printf("START!\n");
+	//if(DEBUG)printf("START!\n");
 
 	sei();
 
 	while(1){
+
+		UpdateTxData();
 
 		setBit(&pCTXIR1,CTXIR1);
 		setBit(&pCTXIR2,CTXIR2);
@@ -146,8 +148,23 @@ int main(void)
 
 		auxWheelSig = getBit(pAUXWHEEL,AUXWHEEL);
 
+		if(cmdMotL==0)
+			MotorL_stop();
+		else if(cmdMotL>0)
+			MotorL_fwd(cmdMotL);
+		else if(cmdMotL<0)
+			MotorL_bck(-cmdMotL);
 
-		printf("side:");
+		if(cmdMotR==0)
+			MotorR_stop();
+		else if(cmdMotR>0)
+			MotorR_fwd(cmdMotR);
+		else if(cmdMotR<0)
+			MotorR_bck(-cmdMotR);
+
+
+
+		/*printf("side:");
 
 		for(int i=0;i<6;i++){
 			printf(" %d,",sideSensors[i]);
@@ -163,7 +180,7 @@ int main(void)
 
 		printf("dirt: %d,motorL_SW: %d,motorP_SW: %d, auxwheel:%d",dirtSensor,motorLswitch,motorPswitch,auxWheelSig);
 
-		printf("\n");
+		printf("\n");*/
 
 		_delay_ms(100);
 	}
@@ -239,7 +256,7 @@ void ReadMUX(){
 
 	_delay_ms(1);
 
-	motorPswitch = getModulatedValue(0);//MUX1
+	motorRswitch = getModulatedValue(0);//MUX1
 
 	setBit(&pSel0,Sel0);
 	setBit(&pSel1,Sel1);
@@ -345,20 +362,20 @@ void MotorL_bck(uint8_t speed){//0-100%
 	setBit(&pML2S,ML2S);
 	clearBit(&pML1S,ML1S);
 }
-void MotorP_bck(uint8_t speed){//0-100%
+void MotorR_bck(uint8_t speed){//0-100%
 	OCR1B=255-(uint16_t)(speed)*255/100;//0-255
 
 	setBit(&pMP1S,MP1S);
 	clearBit(&pMP2S,MP2S);
 }
-void MotorP_fwd(uint8_t speed){//0-100%
+void MotorR_fwd(uint8_t speed){//0-100%
 	OCR1B=255-(uint16_t)(speed)*255/100;//0-255
 
 	setBit(&pMP2S,MP2S);
 	clearBit(&pMP1S,MP1S);
 }
 
-void MotorP_stop(){
+void MotorR_stop(){
 	OCR1B=0;//0-255
 
 	clearBit(&pMP2S,MP2S);

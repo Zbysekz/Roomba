@@ -9,9 +9,9 @@ void Blik(void);
 
 void MotorL_fwd(uint8_t speed);
 void MotorL_bck(uint8_t speed);
-void MotorP_fwd(uint8_t speed);
-void MotorP_bck(uint8_t speed);
-void MotorP_stop();
+void MotorR_fwd(uint8_t speed);
+void MotorR_bck(uint8_t speed);
+void MotorR_stop();
 void MotorL_stop();
 
 uint16_t ReadADC(uint8_t adc_input);
@@ -19,3 +19,8 @@ uint16_t ReadADC(uint8_t adc_input);
 void ReadMUX();
 
 uint8_t getModulatedValue(uint8_t ADC_channel);
+
+extern int8_t cmdMotL,cmdMotR;
+extern uint32_t enkL,enkR;
+
+extern uint8_t sideSensors[6],cliffSensors[4],bumpSensors[2],dirtSensor,motorRswitch,motorLswitch,auxWheelSig;
