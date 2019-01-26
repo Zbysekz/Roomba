@@ -4,13 +4,16 @@ import smbus
 import crc8
 from sys import stdout
 from time import sleep
-
+from enum import Enum
 
 ADDR_MOTHERBOARD = 0x27      #7 bit address (will be left shifted to add the read write bit)
 ADDR_BMS = 0x28
 
 bus=0
 
+class Direction(Enum):
+    LEFT=0
+    RIGHT=1
 
 
 def Init():
@@ -91,7 +94,7 @@ def ShowMotherBoardData():
     except KeyboardInterrupt:
         stdout.write("\n") # move the cursor to the next line
 
-def Move(leftMotor,rightMotor,stopWhenBump=True):
+def Move(leftMotor,rightMotor,ramp=5,stopWhenBump=True,distance=0):
     if(leftMotor>100):
         leftMotor=100
     if(rightMotor>100):
@@ -111,14 +114,24 @@ def Move(leftMotor,rightMotor,stopWhenBump=True):
     bus.write_byte_data(ADDR_MOTHERBOARD,1,leftMotor)
     bus.write_byte_data(ADDR_MOTHERBOARD,2,rightMotor)
     bus.write_byte_data(ADDR_MOTHERBOARD,3,cmdByte)
+    bus.write_byte_data(ADDR_MOTHERBOARD,4,ramp)
+    bus.write_byte_data(ADDR_MOTHERBOARD,5,distance)
     
     hash = crc8.crc8()
-    hash.update(bytes([leftMotor,rightMotor,cmdByte]))
+    hash.update(bytes([leftMotor,rightMotor,cmdByte,ramp,distance]))
     
         
     crc=int.from_bytes(hash.digest(),byteorder='big')
 
     bus.write_byte_data(ADDR_MOTHERBOARD,200,crc)
+
+def Rotate(direction,speed,angle,ramp=5):#in degrees
+    if direction==Direction.LEFT:
+        Move(-speed,speed,distance=(int)(angle/180*40),ramp=ramp)
+    elif direction==Direction.RIGHT:
+        Move(speed,-speed,distance=(int)(angle/180*40),ramp=ramp)
+    else:
+        raise ValueError("Wrong direction parameter")
 
 def BMSgoOff():
     bus.write_byte_data(ADDR_BMS,1,11)
