@@ -60,12 +60,20 @@
 #define pIRFREQ PORTB
 #define IRFREQ PB3
 
+long out1,out2,integ_err1,integ_err2;
+long Kp=4000,Kd=100,Ki=400,Ko=1,
+		err,last_err1,last_err2;
 
-uint32_t enkL,enkR;
+volatile uint32_t enkL,enkR,distanceL,distanceR;
+volatile int speedL,speedR,//actual speed
+speedReqL,speedReqR,//requested speed
+speedReq2L,speedReq2R;//ramped requested speed
 
-int8_t cmdMotL,cmdMotR;
+volatile uint8_t speedRamp=1;//how is the ramp steep
+volatile uint16_t distanceReq=0,distanceReq_last=0;//required distance to travel
 
 uint8_t sideSensors[6],cliffSensors[4],bumpSensorL,bumpSensorR,dirtSensor,motorRswitch,motorLswitch,auxWheelSig;
+uint8_t stopWhenBump=1;
 
 #ifdef DEBUG
 static FILE uart_str = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
@@ -144,34 +152,17 @@ int main(void)
 
 		ReadMUX();
 
-
 		//now stop IRFREQ (OC2)reset IRFREQ and set CTXIR1
 		TCCR2 = 0;
 		clearBit(&pIRFREQ,IRFREQ);
 		setBit(&pCTXIR1,CTXIR1);
 		clearBit(&pCTXIR2,CTXIR2);
-		_delay_ms(10);
+		_delay_ms(1);//10
 		auxWheelSig = getBit(pAUXWHEEL,AUXWHEEL);
 
 		TCCR2 = (1<<WGM21) | (1<<WGM20) | (1<<COM21) | (1<<CS22);
 		_delay_ms(1);
 		//////////////////////
-
-		if(cmdMotL==0)
-			MotorL_stop();
-		else if(cmdMotL>0)
-			MotorL_fwd(cmdMotL);
-		else if(cmdMotL<0)
-			MotorL_bck(-cmdMotL);
-
-		if(cmdMotR==0)
-			MotorR_stop();
-		else if(cmdMotR>0)
-			MotorR_fwd(cmdMotR);
-		else if(cmdMotR<0)
-			MotorR_bck(-cmdMotR);
-
-
 
 		/*printf("side:");
 
@@ -191,7 +182,103 @@ int main(void)
 
 		printf("\n");*/
 
-		_delay_ms(100);
+		////////////////////////////////
+		//printf("ramp: %d,reqL: %d",speedRamp,speedReqL);
+
+		////////////DISTANCE MEASUREMENT///////////
+		if((distanceReq_last==0 && distanceReq!=0)){//if request to measure distance has arrived, reset distance measurement
+			distanceL=0;distanceR=0;
+		}
+
+		if(distanceReq>0 && distanceReq<=(distanceL+distanceR)/2){//stop when we have traveled required distance
+			speedReqR=0;speedReqL=0;//stop by ramp
+			distanceReq=0;//reset requirement
+		}
+
+		distanceReq_last=distanceReq;
+
+		////////////RAMPING////////////////////////
+		if(speedReq2L>speedReqL){
+			speedReq2L-=speedRamp;
+			if(speedReq2L<speedReqL)speedReq2L=speedReqL;//prevent overstepping
+		}else if(speedReq2L<speedReqL){
+			speedReq2L+=speedRamp;
+			if(speedReq2L>speedReqL)speedReq2L=speedReqL;//prevent overstepping
+		}
+
+		if(speedReq2R>speedReqR){
+			speedReq2R-=speedRamp;
+			if(speedReq2R<speedReqR)speedReq2R=speedReqR;//prevent overstepping
+		}else if(speedReq2R<speedReqR){
+			speedReq2R+=speedRamp;
+			if(speedReq2R>speedReqR)speedReq2R=speedReqR;//prevent overstepping
+		}
+
+
+		////////////STOP WHEN BUMP FUNCTION////////
+		if(stopWhenBump){
+			if(bumpSensorL==0 || bumpSensorR==0){
+				//if we stuck to obstacle in front and we are moving forward, stop
+				if(speedReqR>0||speedReqL>0||speedReq2R>0||speedReq2L>0){
+					speedReqR=0;
+					speedReqL=0;
+					speedReq2R=0;
+					speedReq2L=0;
+				}
+			}
+		}
+
+
+		//PID REGULATION
+		//////LEFT MOTOR//////
+		if(out1>0)
+			err=(speedReq2L/10)-speedL;//actual speed positive
+		else
+			err=(speedReq2L/10)+speedL;//actual speed negative
+
+		out1 =(Kp*err - Kd*(last_err1-err) + Ki*integ_err1)/Ko;
+		last_err1=err;
+
+		if(out1>=100000)out1=100000;
+		else if(out1<=-100000)out1=-100000;
+		else integ_err1+=err;
+
+		if(speedReq2L==0){out1=0;integ_err1=0;}
+
+		if(out1==0)MotorL_stop();else
+		if(out1<0)MotorL_bck(-out1/1000);else
+		if(out1>0)MotorL_fwd(out1/1000);
+
+		//////RIGHT MOTOR//////
+		if(out2>0)
+			err=(speedReq2R/10)-speedR;//actual speed positive
+		else
+			err=(speedReq2R/10)+speedR;//actual speed negative
+
+		out2 =(Kp*err - Kd*(last_err2-err) + Ki*integ_err2)/Ko;
+		last_err2=err;
+
+		if(out2>=100000)out2=100000;
+		else if(out2<=-100000)out2=-100000;
+		else integ_err2+=err;
+
+		if(speedReq2R==0){out2=0;integ_err2=0;}
+
+		if(out2==0)MotorR_stop();else
+		if(out2<0)MotorR_bck(-out2/1000);else
+		if(out2>0)MotorR_fwd(out2/1000);
+
+		////////////////////////
+
+		if(integ_err1>20000)integ_err1=20000;
+		else if(integ_err1<-20000)integ_err1=-20000;
+		if(integ_err2>20000)integ_err2=20000;
+		else if(integ_err2<-20000)integ_err2=-20000;
+
+
+
+
+		//_delay_ms(20);
 	}
 
 return 0;
@@ -200,6 +287,13 @@ return 0;
 // Timer 0 overflow interrupt service routine    // Clock value: 15 Hz
 ISR(TIMER0_OVF_vect)
 {
+		speedL=enkL;
+		speedR=enkR;
+
+		distanceL+=enkL;
+		distanceR+=enkR;
+
+		enkL=0;enkR=0;
 
 }
 ISR(INT0_vect){

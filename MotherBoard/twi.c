@@ -193,10 +193,13 @@ ISR(TWI_vect)
 
 void ValidateData(uint8_t crc){
 	//validate if received data are ok
-	if(CalculateCRC(rxBuffer,2) == crc){
+	if(CalculateCRC(rxBuffer,5) == crc){
 		//we can now copy rxBuffer data to specific vars
-		cmdMotL=rxBuffer[0];
-		cmdMotR=rxBuffer[1];
+		speedReqL=(int8_t)(rxBuffer[0])*15/10;
+		speedReqR=(int8_t)(rxBuffer[1])*15/10;
+		stopWhenBump=rxBuffer[2]&0x01;
+		speedRamp=rxBuffer[3];
+		distanceReq=(uint16_t)(rxBuffer[4])*10;
 	}
 }
 
@@ -225,8 +228,8 @@ void UpdateTxData(){//called at the beginning and every time after CRC value is 
 
 	buff[10]=dirtSensor;
 	buff[11]=motorLswitch*0x01+motorRswitch*0x02+auxWheelSig*0x04+bumpSensorL*0x08+bumpSensorR*0x10;
-	buff[12]=enkL;
-	buff[13]=enkR;
+	buff[12]=speedL;
+	buff[13]=speedR;
 
 	if(buffId==0)
 		txCRC2=CalculateCRC(buff,14);
