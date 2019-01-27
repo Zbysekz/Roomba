@@ -110,20 +110,22 @@ def Move(leftMotor,rightMotor,ramp=5,stopWhenBump=True,distance=0):
         rightMotor=256+rightMotor
         
     cmdByte = int(stopWhenBump)<<0
+    try:
+        bus.write_byte_data(ADDR_MOTHERBOARD,1,leftMotor)
+        bus.write_byte_data(ADDR_MOTHERBOARD,2,rightMotor)
+        bus.write_byte_data(ADDR_MOTHERBOARD,3,cmdByte)
+        bus.write_byte_data(ADDR_MOTHERBOARD,4,ramp)
+        bus.write_byte_data(ADDR_MOTHERBOARD,5,distance)
         
-    bus.write_byte_data(ADDR_MOTHERBOARD,1,leftMotor)
-    bus.write_byte_data(ADDR_MOTHERBOARD,2,rightMotor)
-    bus.write_byte_data(ADDR_MOTHERBOARD,3,cmdByte)
-    bus.write_byte_data(ADDR_MOTHERBOARD,4,ramp)
-    bus.write_byte_data(ADDR_MOTHERBOARD,5,distance)
-    
-    hash = crc8.crc8()
-    hash.update(bytes([leftMotor,rightMotor,cmdByte,ramp,distance]))
-    
+        hash = crc8.crc8()
+        hash.update(bytes([leftMotor,rightMotor,cmdByte,ramp,distance]))
         
-    crc=int.from_bytes(hash.digest(),byteorder='big')
+            
+        crc=int.from_bytes(hash.digest(),byteorder='big')
 
-    bus.write_byte_data(ADDR_MOTHERBOARD,200,crc)
+        bus.write_byte_data(ADDR_MOTHERBOARD,200,crc)
+    except OSError:
+        print("OSError in Move()!")
 
 def Rotate(direction,speed,angle,ramp=5):#in degrees
     if direction==Direction.LEFT:

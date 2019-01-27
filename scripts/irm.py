@@ -3,7 +3,6 @@
 import RPi.GPIO as GPIO
 import time
 from multiprocessing import Process,Lock,Value,Array
-from operator import xor
 
 ERROR = 0x00
 
@@ -27,7 +26,7 @@ GPIO.setup(PIN_R, GPIO.IN, GPIO.PUD_UP)
 GPIO.setup(PIN_T, GPIO.IN, GPIO.PUD_OFF)
 
 endThreads=False
-
+printInfo=False
 timeout = 35e-3
 
 tL=0
@@ -74,8 +73,8 @@ def getCode(pin):
         else:
             res.append("H")
 
-    #if pin == PIN_L:
-     #   print(res)
+    #if pin == PIN_R:
+        #print(res)
     
     if len(res)==16 and 'TT' not in res[:-1] and 'TT' == res[-1]:#if timeout character is only at the last index
         num=0
@@ -91,16 +90,18 @@ def getCode(pin):
 
 def ReadL(lock,tmrTimeout,leftRateTmp):
     while(not endThreads and tmrTimeout.value!=0):
-        tmrTimeout.value-=1
+        
         code = getCode(PIN_L);
         #if code != ERROR:
         #print("L:0x%02x"%code)
         lock.acquire()
-        if(xor(code,LEFT_BEAM)==0):
+        tmrTimeout.value-=1
+        
+        if((code & LEFT_BEAM)==LEFT_BEAM):
             leftRateTmp[0]+=1
-        if(xor(code,RIGHT_BEAM)==0):
+        if((code & RIGHT_BEAM)==RIGHT_BEAM):
             leftRateTmp[1]+=1
-        if(xor(code,FORCE_FIELD)==0):
+        if((code & FORCE_FIELD)==FORCE_FIELD):
             leftRateTmp[2]+=1
             
         lock.release()
@@ -108,16 +109,18 @@ def ReadL(lock,tmrTimeout,leftRateTmp):
         
 def ReadR(lock,tmrTimeout,rightRateTmp):
     while(not endThreads and tmrTimeout.value!=0):
-        tmrTimeout.value-=1
+        
         code = getCode(PIN_R);
         #if code != ERROR:
         #print("R:0x%02x"%code)
         lock.acquire()
-        if(xor(code,LEFT_BEAM)==0):
+        tmrTimeout.value-=1
+        
+        if((code & LEFT_BEAM)==LEFT_BEAM):
             rightRateTmp[0]+=1
-        if(xor(code,RIGHT_BEAM)==0):
+        if((code & RIGHT_BEAM)==RIGHT_BEAM):
             rightRateTmp[1]+=1
-        if(xor(code,FORCE_FIELD)==0):
+        if((code & FORCE_FIELD)==FORCE_FIELD):
             rightRateTmp[2]+=1
             
         lock.release()
@@ -125,27 +128,29 @@ def ReadR(lock,tmrTimeout,rightRateTmp):
         
 def ReadT(lock,tmrTimeout,topRateTmp):
     while(not endThreads and tmrTimeout.value!=0):
-        tmrTimeout.value-=1
+        
         code = getCode(PIN_T);
         #if code != ERROR:
         #print("T:0x%02x"%code)
         lock.acquire()
+        tmrTimeout.value-=1
         
-        if(xor(code,LEFT_BEAM)==0):
+        if((code & LEFT_BEAM)==LEFT_BEAM):
             topRateTmp[0]+=1
-        if(xor(code,RIGHT_BEAM)==0):
+        if((code & RIGHT_BEAM)==RIGHT_BEAM):
             topRateTmp[1]+=1
-        if(xor(code,FORCE_FIELD)==0):
+        if((code & FORCE_FIELD)==FORCE_FIELD):
             topRateTmp[2]+=1
         
         lock.release()
     print("tT process terminated")
 
-def RateSampler(lock,tmrTimeout,leftRate,rightRate,topRate,leftRateTmp,rightRateTmp,topRateTmp):
+def RateSampler(lock,tmrTimeout,leftRate,rightRate,topRate,leftRateTmp,rightRateTmp,topRateTmp,prInfo):
     
     while(not endThreads and tmrTimeout.value!=0):
-        tmrTimeout.value-=1
+        
         lock.acquire()
+        tmrTimeout.value-=1
         
         leftRate[0]=leftRateTmp[0]
         leftRate[1]=leftRateTmp[1]
@@ -173,9 +178,10 @@ def RateSampler(lock,tmrTimeout,leftRate,rightRate,topRate,leftRateTmp,rightRate
         lock.release()
         
         
-#        print("L:"+str(leftRate[0])+","+str(leftRate[1])+","+str(leftRate[2]))
-#        print("R:"+str(rightRate[0])+","+str(rightRate[1])+","+str(rightRate[2]))
-#        print("T:"+str(topRate[0])+","+str(topRate[1])+","+str(topRate[2]))
+        if prInfo:
+            print("L:"+str(leftRate[0])+","+str(leftRate[1])+","+str(leftRate[2]))
+            print("R:"+str(rightRate[0])+","+str(rightRate[1])+","+str(rightRate[2]))
+            print("T:"+str(topRate[0])+","+str(topRate[1])+","+str(topRate[2]))
 
         time.sleep(0.5)
     print("tS process terminated")
@@ -188,7 +194,7 @@ def getTopRate():
     return [topRate[0],topRate[1],topRate[2]]
 
 def Start():
-    global tL,tR,tT,tS,tmrTimeout,leftRate,rightRate,topRate
+    global tL,tR,tT,tS,tmrTimeout,leftRate,rightRate,topRate,printInfo
     
     leftRate = Array('i',range(3))
     rightRate = Array('i',range(3))
@@ -201,7 +207,7 @@ def Start():
     tmrTimeout = Value('i',300)
 
     lock = Lock()
-    tS = Process(target=RateSampler,args=(lock,tmrTimeout,leftRate,rightRate,topRate,leftRateTmp,rightRateTmp,topRateTmp))
+    tS = Process(target=RateSampler,args=(lock,tmrTimeout,leftRate,rightRate,topRate,leftRateTmp,rightRateTmp,topRateTmp,printInfo))
     
     tL = Process(target=ReadL,args=(lock,tmrTimeout,leftRateTmp)) #gute
     tR = Process(target=ReadR,args=(lock,tmrTimeout,rightRateTmp)) #gute
@@ -219,7 +225,8 @@ def Terminate():
     
 if __name__ == "__main__":  
     print('IRM Start')
-       
+    
+    printInfo = True
     Start()
     
     try:
