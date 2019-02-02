@@ -18,7 +18,7 @@ rightBaseBeam=0
 leftBaseBeam=0
 
 
-def Dock():
+def Dock(pl):
         
     leftIRrate = pl.getLeftRate()
     rightIRrate = pl.getRightRate()
