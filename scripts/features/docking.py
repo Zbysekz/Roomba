@@ -1,5 +1,8 @@
 #!/usr/bin/python3
-from roombaPlatform import Platform
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+from hardware.roombaPlatform import Platform
 from time import sleep
 import time
 
@@ -159,12 +162,13 @@ if __name__ == "__main__":
     pl.Connect()
 
     while(1):
-        pl.Preprocess()
-        Dock(pl)
-        pl.RefreshTimeout()
-    except KeyboardInterrupt:
-        pl.Move(0,0)
-        print("Keyboard interrupt, stopping!")
+        try:
+            pl.Preprocess()
+            Dock(pl)
+            pl.RefreshTimeout()
+        except KeyboardInterrupt:
+            pl.Move(0,0)
+            print("Keyboard interrupt, stopping!")
     
     pl.Terminate()
     

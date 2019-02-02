@@ -1,87 +1,70 @@
 #!/usr/bin/python3
-from roombaPlatform import Platform
-from docking import Dock
+from hardware.roombaPlatform import Platform
+from features.docking import Dock
+from stateMachine import StateMachine
 
-stateList = [
-    STATE_idle,
-    STATE_SMS_send,
-    STATE_SMS_wait
-]
-
-currState = STATE_idle
-nextState = ""
+st = 0 #state machine
+pl = 0 #platform
 
 def STATE_idle():
-    NextState();
- 
-def STATE_SMS_send():
-    NextState();
- 
-def STATE_SMS_wait():
+    if pl.isCharging:
+        st.NextState(STATE_docked)
+        
+def STATE_docked():
 
-    if False:
-        NextState(STATE_idle);
+    if st.CheckTimeout(5):
+        st.ResetTimeout()
+        if not st.isCharging:
+            print("Not charging anymore")
+            st.NextState(STATE_idle)
 
-    if CheckTimeout(5):
-        Log("Timeout in state:"+str(currState))
-        NextState(STATE_idle)
+def STATE_searchForBase():
+    print("")    
 
-#----------------------------------------------------------------------------
-def NextState(name = ""):
-    global switcher,currState,nextState
-
-    if name == "":
-        idx = stateList.index(currState)
-        idx = idx + 1
-        nextState = stateList[idx]
-    else:
-        nextState = name
+def STATE_docking():
+    Dock()
     
- 
-def Process():
-    global currState,nextState,tmrTimeout
+def STATE_cleaning():
 
-    if currState != "" and nextState != "" and currState != nextState:
-        print("Transition to:"+nextState.__name__)
-        currState = nextState
-        tmrTimeout = time.time()
-    
-    # Execute the function
-    currState()
+    #spiral at the start until you hit obstacle
+    #then do wall following until time expires
+    #bounce with random angle around the room for certain time
+    #again do wall following
+    #when time for cleaning is up, go search for base
+    print("")
+def STATE_batteryLow():
+    print("")
 
-
-def CheckTimeout(timeout):#in seconds
-    global tmrTimeout
-
-    if time.time() - tmrTimeout > timeout:
-        return True
-    else:
-        return False
-    
 #----------------------------------------------------------------------------
 def Cleaning():
+    global st,pl
+    
+    stateList = [
+        STATE_idle,
+        STATE_docked,
+        STATE_searchForBase,
+        STATE_docking,
+        STATE_cleaning,
+        STATE_batteryLow
+    ]
+    st = StateMachine(stateList)
 
     pl = Platform()
 
     pl.Connect()
     
     while(1):
-        pl.Preprocess()
+        try:
+            pl.Preprocess()
 
+            #main state machine
+            st.Run()
 
-        #main state machine
-
+            pl.RefreshTimeout()
+        except KeyboardInterrupt:
+            pl.Move(0,0)
+            print("Keyboard interrupt, stopping!")
         
-
-
-
-
-        
-        pl.RefreshTimeout()
-    except KeyboardInterrupt:
-        pl.Move(0,0)
-        print("Keyboard interrupt, stopping!")
-    
     pl.Terminate()
     
     print("END")
