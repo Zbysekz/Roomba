@@ -66,7 +66,7 @@ def ReadMotherBoardData():
         print("OSError ReadMotherBoardData()")
         return[]
     
-    modif = [Rescale(data[:6]),Rescale(data[6:10]),data[10],data[11]&0x01,(data[11]&0x02)>>1,(data[11]&0x04)>>2,(data[11]&0x08)>>3,(data[11]&0x10)>>4,data[12],data[13]]    
+    modif = [Rescale(data[:6]),Rescale(data[6:10]),data[10],data[11]&0x01,(data[11]&0x02)>>1,(data[11]&0x04)>>2,(data[11]&0x08)>>3,(data[11]&0x10)>>4,(data[11]&0x20)>>5,data[12],data[13]]    
     return modif
 
 def Rescale(arr):#rescale 0-255 items in list to 0.0-1.0

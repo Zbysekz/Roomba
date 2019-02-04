@@ -14,7 +14,7 @@ def STATE_docked():
 
     if st.CheckTimeout(5):
         st.ResetTimeout()
-        if not st.isCharging:
+        if not pl.isCharging:
             print("Not charging anymore")
             st.NextState(STATE_idle)
 
@@ -64,6 +64,7 @@ def Cleaning():
         except KeyboardInterrupt:
             pl.Move(0,0)
             print("Keyboard interrupt, stopping!")
+            break
         
     pl.Terminate()
     
