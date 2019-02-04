@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath('__file__'))))
 from hardware.roombaPlatform import Platform
 from time import sleep
 import time
@@ -9,9 +9,7 @@ import time
 goodDirection = 0
 reversing = 0
 
-oscilState=False
-tmrOscil=0
-steer=0
+
 lastTimeCharging=0
 baseIsClose=False
 rightBaseBeam=0
@@ -19,6 +17,7 @@ leftBaseBeam=0
 
 
 def Dock(pl):
+    global baseIsClose,lastTimeCharging,rightBaseBeam,leftBaseBeam,reversing,goodDirection
         
     leftIRrate = pl.getLeftRate()
     rightIRrate = pl.getRightRate()
@@ -122,7 +121,7 @@ def Dock(pl):
                 if rightBaseBeam>0:
                     pl.Move(-10,30,distance=10)#base is probably on the left
                     print("L(13)")
-                    sleep(3)
+                    sleep(1)
                 else:
                     pl.Move(20,10)
                     print("R(10)")
@@ -132,7 +131,7 @@ def Dock(pl):
                 if leftBaseBeam>0:
                     pl.Move(30,-10,distance=10)#base is probably on the right
                     print("R(12)")
-                    sleep(3)
+                    sleep(1)
                 else:
                     rightBaseBeam=40
                     pl.Move(10,20)
@@ -166,9 +165,12 @@ if __name__ == "__main__":
             pl.Preprocess()
             Dock(pl)
             pl.RefreshTimeout()
+            print(pl.standstill)
+            
         except KeyboardInterrupt:
             pl.Move(0,0)
             print("Keyboard interrupt, stopping!")
+            break
     
     pl.Terminate()
     

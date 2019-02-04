@@ -23,7 +23,7 @@ class StateMachine:
         if self.currState != "" and self.nextState != "" and self.currState != self.nextState:
             print("Transition to:"+self.nextState.__name__)
             self.currState = self.nextState
-            ResetTimeout()
+            self.ResetTimeout()
 
         # Execute the function
         self.currState()

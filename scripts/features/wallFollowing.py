@@ -1,56 +1,64 @@
 #!/usr/bin/python3
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath('__file__'))))
 from hardware.roombaPlatform import Platform
 from time import sleep
 import time
 
 afterBump = False
-tmrBump=0
 
-def WallFolowing(pl):
-            
+def WallFollowing(pl):
+    global afterBump,tmrBump
 
-    if afterBump>0:
 
-        if afterBump==1 and time.time()-tmrBump > 3:
+    if pl.isCharging or pl.liftedUp or pl.onCliff or not pl.validData:#not pl.somethingClose and  
+        pl.Move(0,0)
+        print("STOP:"+str(pl.isCharging)+" "+str(pl.liftedUp)+" "+str(pl.onCliff)+" "+str(pl.validData))
+    elif afterBump>0:
+        print("afterBump:"+str(afterBump))
+
+        if afterBump==1 and pl.standstill:
             afterBump=0
-        elif afterBump==2 and time.time()-tmrBump > 3:
-            Move(30,-30,distance=20)
+        elif afterBump==2 and pl.standstill:
+            pl.Move(-30,30,distance=10)
             afterBump=10
-            tmrBump=time.time()
-        elif afterBump==10 and time.time()-tmrBump > 3:
+        elif afterBump==10 and pl.standstill:
             afterBump=0
         
     elif pl.bumper:
-        tmrBump=time.time()
-        if sensorData[6]==0:
+        if pl.sensorData[7]==0:#if we hit by right bumper
             afterBump=1
-            Move(-10,-30,distance=20)
-        if sensorData[7]==0:
+            pl.Move(-30,-10,distance=10)
+        if pl.sensorData[6]==0:# if we hit by left bumper
             afterBump=2
-            Move(-20,-20,distance=20)
+            pl.Move(-20,-20,distance=10)
         
-    elif not pl.isCharging and not pl.liftedUp and not pl.onCliff: #not pl.somethingClose and           
+    else:          
         
         sideSensors = pl.sensorData[0]
 
         steer = 0
 
-        steer += sideSensors[0]
-        steer += sideSensors[1]
-        steer += sideSensors[2]
-        steer += sideSensors[3]
-
-        #normalize steer to 0 - 1.0
-        steer = steer / 4
-
-        Move(50,50-int(steer*100),ramp=200)
+        steer += sideSensors[2] if sideSensors[2]>0.3 else 0
+        steer += sideSensors[3] if sideSensors[3]>0.3 else 0
         
-    
-    else:
-        pl.Move(0,0)
+        steer += sideSensors[4] if sideSensors[4]>0.1 else 0
+        steer += sideSensors[5] - 0.7
+
+        #limit steering value
+        maxSteerL=0.8
+        maxSteerR=0.8
+        if steer>maxSteerL:
+            steer=maxSteerL
+        elif steer<-maxSteerR:
+            steer=-maxSteerR
+            
+        print(sideSensors)
+        print("steer:"+str(steer))
+
+        pl.Move(40-int((steer)*50),45+int((steer)*50),ramp=200)   #more steer means more to the LEFT
+        
         
     sleep(0.1)
     
@@ -70,6 +78,7 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             pl.Move(0,0)
             print("Keyboard interrupt, stopping!")
+            break
     
     pl.Terminate()
     
