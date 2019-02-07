@@ -71,6 +71,7 @@ speedReq2L,speedReq2R;//ramped requested speed
 
 volatile uint8_t speedRamp=1;//how is the ramp steep
 volatile uint16_t distanceReq=0,distanceReq_last=0;//required distance to travel
+volatile uint8_t standstill;
 
 uint8_t sideSensors[6],cliffSensors[4],bumpSensorL,bumpSensorR,dirtSensor,motorRswitch,motorLswitch,auxWheelSig;
 uint8_t stopWhenBump=1;
@@ -195,6 +196,7 @@ int main(void)
 			distanceReq=0;//reset requirement
 		}
 
+
 		distanceReq_last=distanceReq;
 
 		////////////RAMPING////////////////////////
@@ -228,6 +230,11 @@ int main(void)
 			}
 		}
 
+		///////standstill evaluation/////
+		if(OCR1A==0 && OCR1B==0&&speedReqL==0&&speedReqL==0)
+			standstill=1;
+		else
+			standstill=0;
 
 		//PID REGULATION
 		//////LEFT MOTOR//////

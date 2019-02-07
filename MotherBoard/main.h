@@ -22,6 +22,7 @@ uint8_t getModulatedValue(uint8_t ADC_channel);
 
 extern volatile int speedL,speedR,speedReqL,speedReqR;
 extern volatile uint8_t speedRamp;
+extern volatile uint8_t standstill;
 extern volatile uint16_t distanceReq;
 
 extern uint8_t sideSensors[6],cliffSensors[4],bumpSensorL,bumpSensorR,dirtSensor,motorRswitch,motorLswitch,auxWheelSig;
