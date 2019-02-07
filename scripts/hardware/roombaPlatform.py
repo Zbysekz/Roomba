@@ -1,12 +1,13 @@
 #!/usr/bin/python3
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath('__file__'))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(sys.argv[0]))))
+
 import hardware.comm as comm
 import hardware.irm as irm
 from sys import stdout
 from time import sleep
-
+   
 class Platform:
     LEFT = 0
     RIGHT = 1
@@ -55,8 +56,23 @@ class Platform:
         
         self.validData = True
         
+    def getDynamicSpeed(self,minSpeed,maxSpeed): #return speed accoring to obstacles in front of roomba
+        
+        if not self.validData:
+            return minSpeed
+        
+        speed = maxSpeed
+        
+        if any([s>0.3 for s in self.sensorData[0][0:5]]):#take all six sensors
+            speed = minSpeed
+        elif any([s>0.2 for s in self.sensorData[0][1:4]]):
+            speed = (maxSpeed - minSpeed)/2 + minSpeed
+        elif any([s>0.1 for s in self.sensorData[0][2:3]]):
+            speed = (maxSpeed - minSpeed)*3/4 + minSpeed
+        
+        return int(speed)
     
-    def Move(self,leftMotor,rightMotor,ramp=10,stopWhenBump=True,distance=0):
+    def Move(self,leftMotor,rightMotor,distance=0,ramp=200,stopWhenBump=True):
         comm.Move(leftMotor,rightMotor,ramp,stopWhenBump,distance)
         
         if(leftMotor!=0 or rightMotor!=0):
@@ -65,6 +81,11 @@ class Platform:
         
     def Rotate(self,direction,speed,angle,ramp=5):#in degrees
         comm.Rotate(direction,speed,angle,ramp)
+        self.standstill=False
+        self.standstillAux=3
+
+    def Stop(self):
+        self.Move(0,0)
 
     def Terminate(self):
         irm.Terminate()
@@ -102,5 +123,9 @@ if __name__ == "__main__":
     
             print("TERMINATING")
             irm.Terminate()
-
+        elif('OFF' in sys.argv[1]):
+            print("Shutting down BMS and raspberry")
+            comm.BMSgoOff()
+            from subprocess import call
+            call("shutdown -h now", shell=True)
         

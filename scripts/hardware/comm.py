@@ -10,11 +10,8 @@ ADDR_MOTHERBOARD = 0x27      #7 bit address (will be left shifted to add the rea
 ADDR_BMS = 0x28
 
 bus=0
-
-class Direction(Enum):
-    LEFT=0
-    RIGHT=1
-
+LEFT=0
+RIGHT=1
 
 def Init():
     global bus
@@ -128,9 +125,9 @@ def Move(leftMotor,rightMotor,ramp=5,stopWhenBump=True,distance=0):
         print("OSError in Move()!")
 
 def Rotate(direction,speed,angle,ramp=5):#in degrees
-    if direction==Direction.LEFT:
+    if direction==LEFT:
         Move(-speed,speed,distance=(int)(angle/180*40),ramp=ramp)
-    elif direction==Direction.RIGHT:
+    elif direction==RIGHT:
         Move(speed,-speed,distance=(int)(angle/180*40),ramp=ramp)
     else:
         raise ValueError("Wrong direction parameter")

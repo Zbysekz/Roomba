@@ -8,7 +8,8 @@ class StateMachine:
         self.stateList = stateList
         self.currState = stateList[0]
         self.nextState = stateList[0]
-        self.tmrTimeout = 0
+        self.__stepTime = time.time()
+        self.__first=True#true always for first execution of step
 
     def NextState(self,name = ""):
 
@@ -23,16 +24,19 @@ class StateMachine:
         if self.currState != "" and self.nextState != "" and self.currState != self.nextState:
             print("Transition to:"+self.nextState.__name__)
             self.currState = self.nextState
-            self.ResetTimeout()
+            self.__stepTime = time.time()
+            self.__first=True
 
         # Execute the function
         self.currState()
 
-    def CheckTimeout(self,timeout):#in seconds
-
-        if time.time() - self.tmrTimeout > timeout:
-            return True
-        else:
-            return False
-    def ResetTimeout(self):
-        self.tmrTimeout = time.time()
+    def getStepTime(self):#in seconds
+        return time.time() - self.__stepTime
+    
+    def ResetStepTime(self):
+        self.__stepTime=time.time()
+    
+    def First(self):
+        ret = self.__first
+        self.__first=False
+        return ret
