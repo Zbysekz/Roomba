@@ -39,6 +39,8 @@ class Platform:
             self.validData=False
             return
         
+        self.batVoltages = [self.bmsData[1],self.bmsData[2],self.bmsData[3]]
+        
         self.somethingClose = any([s>0.3 for s in self.sensorData[0]])
         
         self.liftedUp = self.sensorData[3]==0 or self.sensorData[4]==0#wheel switches

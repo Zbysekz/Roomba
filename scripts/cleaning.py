@@ -4,10 +4,20 @@ from features.docking import Dock
 from utils.stateMachine import StateMachine
 from utils.timer import cTimer
 import random
+import RPi.GPIO as GPIO
 
 pl  = 0 #platform
 st  = 0 #state machine
 st2 = 0 # state machine for cleaning
+
+PIN_FAN = 16# fan in stack
+PIN_SWEEPER = 21#sweeper
+PIN_BRUSH = 20# main brush
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(PIN_FAN, GPIO.OUT)
+GPIO.setup(PIN_SWEEPER, GPIO.OUT)
+GPIO.setup(PIN_BRUSH, GPIO.OUT)
 
 tmr100ms = cTimer()
 puls100ms = False
@@ -15,6 +25,7 @@ tmr5s = cTimer()
 puls5s = False
 #------------- timers for cleaning -----------------
 spiralTmr = cTimer()
+serverDataTmr = cTimer()
 
 #------------- auxilliary vars ---------------------
 leftSpiral = False
@@ -143,6 +154,30 @@ def CheckLiftAndCliff(): # check if you are lifted or on the cliff
         storedState1 = st.currState
         st.NextState(STATE_LiftOrCliff)
 
+def SendDataToServer():
+    import socket
+
+    host = "192.168.0.3"  
+    port =  23     
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+     
+    sock.connect((host, port))
+
+    data = [7,102,int(pl.batVoltages[0]*1000/256),int(pl.batVoltages[0]*1000%256),\
+            int(pl.batVoltages[1]*1000/256),int(pl.batVoltages[1]*1000%256),\
+            int(pl.batVoltages[2]*1000/256),int(pl.batVoltages[2]*1000%256)]
+    crc=0
+    for d in data:
+        crc+=d
+    sent = sock.send(bytes([111,222]+data+[int(crc/256),crc%256,222]))
+    
+    print(data)
+    print(bytes([111,222]+data+[int(crc/256),crc%256,222]))
+    print("DATA SENT TO SERVER!!!")
+
+    sock.close()
+
 #----------------------------------------------------------------------------
 def Cleaning():
     global st,pl,st2,tmr100ms,puls100ms,tmr5s,puls5s
@@ -192,6 +227,10 @@ def Cleaning():
                 puls5s=True
             else:
                 puls5s=False
+                
+            if serverDataTmr.Expired():
+                serverDataTmr.Start(600)
+                SendDataToServer()
                 
         except KeyboardInterrupt:
             pl.Stop()
