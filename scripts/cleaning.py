@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 from hardware.roombaPlatform import Platform
 from features.docking import Dock
+from features.wallFollowing import WallFollowing
 from utils.stateMachine import StateMachine
 from utils.timer import cTimer
 import random
@@ -27,15 +28,22 @@ puls5s = False
 spiralTmr = cTimer()
 serverDataTmr = cTimer()
 
+testTimer = cTimer()
+cleaningTmr = cTimer()
+
 #------------- auxilliary vars ---------------------
 leftSpiral = False
 bumpState = 0
 storedState1=None
 searchForBaseState=0
+undockState=0
+dockedCorrectlyTmr=0
 
 def STATE_idle():
     if pl.isCharging:
+        print("IS CHARGING!!!!!!")
         st.NextState(STATE_docked)
+        testTimer.Start(20)
     else:
         st.NextState(STATE_searchForBase)
         
@@ -46,6 +54,23 @@ def STATE_docked():
         if not pl.isCharging:
             print("Not charging anymore")
             st.NextState(STATE_idle)
+            
+    if testTimer.Expired():
+        print("GOING DO CLEANING")
+        st.NextState(STATE_undock)
+        cleaningTmr.Start(120)
+
+def STATE_undock():
+    global undockState
+    
+    if undockState==0:
+        pl.Move(-50,-50,25)
+        undockState=1
+    elif undockState==1 and pl.standstill:
+        pl.Rotate(Platform.LEFT,60,180)
+        undockState=2
+    elif undockState==2 and pl.standstill:
+        st.NextState(STATE_cleaning)
 
 def STATE_searchForBase():
     global searchForBaseState
@@ -58,10 +83,14 @@ def STATE_searchForBase():
         
         if pl.bumper:
             searchForBaseState=1
-    elif searchForBaseState==1:
-        pl.RotateRandomDirAngle(speed=60)
+            pl.Stop()
+    elif searchForBaseState==1 and pl.standstill:
+        pl.Move(-50,-50,10)
         searchForBaseState=2
     elif searchForBaseState==2 and pl.standstill:
+        pl.RotateRandomDirAngle(speed=60)
+        searchForBaseState=3
+    elif searchForBaseState==3 and pl.standstill:
         searchForBaseState=0
     
     if pl.baseDetected:
@@ -83,6 +112,7 @@ def STATE_docking():
     
     if dockedCorrectlyTmr>50:#5sec of charging means we are nicely docked
         st.NextState(STATE_docked)
+        testTimer.Start(20)
     elif not dockingFail:#docking was unsuccesful, we lost base
         st.NextState(STATE_searchForBase)
     
@@ -102,6 +132,22 @@ def STATE_cleaning():
     
     if pl.bumper and st2.currState != STATE_cleaning_bump:
         st2.NextState(STATE_cleaning_bump)
+        
+    if st2.currState == STATE_cleaning_spiral:
+        if st2.getStepTime() > 30:
+            st2.NextState(STATE_cleaning_wallFollowing)
+            
+    elif st2.currState == STATE_cleaning_wallFollowing:
+        if st2.getStepTime() > 30:
+            st2.NextState(STATE_cleaning_bouncing)
+            
+    elif st2.currState == STATE_cleaning_bouncing:
+        if st2.getStepTime() > 30:
+            st2.NextState(STATE_cleaning_spiral)
+    
+    if cleaningTmr.Expired():
+        print("Time for cleaning expired!")
+        st.NextState(STATE_searchForBase)
     
     
 def STATE_cleaning_spiral():
@@ -120,12 +166,9 @@ def STATE_cleaning_spiral():
         if spiralValue < 60:
             spiralValue += 0.3
     
-    if st2.getStepTime() > 10:
-        st2.NextState(STATE_cleaning_wallFollowing)
-    
 def STATE_cleaning_wallFollowing():
     
-    pl.Move(0,0)
+    WallFollowing(pl)
     
 def STATE_cleaning_bouncing():
     

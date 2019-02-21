@@ -6,7 +6,7 @@ class StateMachine:
     
     def __init__(self,stateList):
         self.stateList = stateList
-        self.currState = stateList[0]
+        self.currState = ""#for first execution it is zero
         self.nextState = stateList[0]
         self.__stepTime = time.time()
         self.__first=True#true always for first execution of step
@@ -21,7 +21,7 @@ class StateMachine:
             self.nextState = name
 
     def Run(self):
-        if self.currState != "" and self.nextState != "" and self.currState != self.nextState:
+        if self.nextState != "" and self.currState != self.nextState:
             print("Transition to:"+self.nextState.__name__)
             self.currState = self.nextState
             self.__stepTime = time.time()

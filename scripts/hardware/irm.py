@@ -204,6 +204,16 @@ def Start():
     rightRateTmp = Array('i',range(3))
     topRateTmp = Array('i',range(3))
     
+    leftRateTmp[0]=0
+    leftRateTmp[1]=0
+    leftRateTmp[2]=0
+    rightRateTmp[0]=0
+    rightRateTmp[1]=0
+    rightRateTmp[2]=0
+    topRateTmp[0]=0
+    topRateTmp[1]=0
+    topRateTmp[2]=0
+    
     tmrTimeout = Value('i',300)
 
     lock = Lock()

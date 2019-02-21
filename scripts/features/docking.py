@@ -102,7 +102,7 @@ def Dock(pl):
             reverseCounter +=1
             
             #but if there was charging signal just before bump, go back a little
-            if time.time() - lastTimeCharging < 5:
+            if time.time() - lastTimeCharging < 10:
                 pl.Move(-10,-10,distance=15)
                 reversing=10
             else:
@@ -156,8 +156,8 @@ def Dock(pl):
                 pl.Move(20,12) #(3)
                 print("only right sees, more RIGHT - R3")
             else:
-                pl.Move(12,20) #(4)
-                print("only right sees, more LEFT - L4")
+                pl.Move(20,12) #(4)
+                print("only right sees, more LEFT - R4")
         #right sensor doesn't see anything but left does
         elif rightIRrate[Platform.LEFT]==0 and rightIRrate[Platform.RIGHT]==0 and\
             (leftIRrate[Platform.LEFT]!=0 or leftIRrate[Platform.RIGHT]!=0):
@@ -166,8 +166,8 @@ def Dock(pl):
                 pl.Move(12,20) #(5)
                 print("only left sees, more left - L5")
             else:
-                pl.Move(20,12) #(6)
-                print("only left sees, more right - R6")
+                pl.Move(12,20) #(6)
+                print("only left sees, more right - L6")
         elif rightIRrate[Platform.LEFT]!=0 and leftIRrate[Platform.RIGHT]!=0 :
             
                 if rightIRrate[Platform.RIGHT] > leftIRrate[Platform.LEFT]:

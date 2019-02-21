@@ -24,6 +24,7 @@ class Platform:
         self.isCharging=False
         self.standstill=False
         self.standstillAux=0
+        self.baseDetected=False
         
     def Connect(self):
         comm.Init()
@@ -46,7 +47,7 @@ class Platform:
     
         self.baseDetected = (leftIRrate[Platform.RIGHT]+leftIRrate[Platform.LEFT]+leftIRrate[Platform.TOP]+\
         rightIRrate[Platform.RIGHT]+rightIRrate[Platform.LEFT]+rightIRrate[Platform.TOP]+\
-        topIRrate[Platform.RIGHT]+topIRrate[Platform.LEFT]+topIRrate[Platform.TOP])>0
+        topIRrate[Platform.RIGHT]+topIRrate[Platform.LEFT]+topIRrate[Platform.TOP])>3
         
         self.batVoltages = [self.bmsData[1],self.bmsData[2],self.bmsData[3]]
         

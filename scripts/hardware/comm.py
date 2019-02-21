@@ -121,8 +121,12 @@ def Move(leftMotor,rightMotor,ramp=5,stopWhenBump=True,distance=0):
         crc=int.from_bytes(hash.digest(),byteorder='big')
 
         bus.write_byte_data(ADDR_MOTHERBOARD,200,crc)
-    except OSError:
+    except OSError as inst:
         print("OSError in Move()!")
+        
+        print(type(inst))  
+        print(inst.args)     
+        print(inst)
 
 def Rotate(direction,speed,angle=0,ramp=5):#in degrees
     if direction==LEFT:
