@@ -31,13 +31,13 @@ serverDataTmr = cTimer()
 leftSpiral = False
 bumpState = 0
 storedState1=None
-
+searchForBaseState=0
 
 def STATE_idle():
     if pl.isCharging:
         st.NextState(STATE_docked)
     else:
-        st.NextState(STATE_docking)
+        st.NextState(STATE_searchForBase)
         
 def STATE_docked():
 
@@ -48,13 +48,44 @@ def STATE_docked():
             st.NextState(STATE_idle)
 
 def STATE_searchForBase():
+    global searchForBaseState
     
     CheckLiftAndCliff()
-    print("searchForBase")    
+    
+    if searchForBaseState==0:
+        speed = pl.getDynamicSpeed(30,100)
+        pl.Move(speed,speed,ramp=20)
+        
+        if pl.bumper:
+            searchForBaseState=1
+    elif searchForBaseState==1:
+        pl.RotateRandomDirAngle(speed=60)
+        searchForBaseState=2
+    elif searchForBaseState==2 and pl.standstill:
+        searchForBaseState=0
+    
+    if pl.baseDetected:
+        print("BASE detected! Docking!")
+        st.NextState(STATE_docking)
+    
 
 def STATE_docking():
-    CheckLiftAndCliff()
-    Dock(pl)
+    global dockedCorrectlyTmr
+    
+    #CheckLiftAndCliff()
+    dockingFail = Dock(pl)
+    
+    if pl.isCharging and puls100ms:
+        dockedCorrectlyTmr+=1
+    
+    if not pl.isCharging:
+        dockedCorrectlyTmr=0
+    
+    if dockedCorrectlyTmr>50:#5sec of charging means we are nicely docked
+        st.NextState(STATE_docked)
+    elif not dockingFail:#docking was unsuccesful, we lost base
+        st.NextState(STATE_searchForBase)
+    
     
 def STATE_cleaning():
     
@@ -129,7 +160,7 @@ def STATE_cleaning_bump():
         if pl.bumper:
             pl.Stop()
             bumpState=0
-        elif st2.getStepTime()>2: # we are moving at least 2 secs withotu bump
+        elif st2.getStepTime()>2: # we are moving at least 2 secs without bump
             st2.NextState(STATE_cleaning_bouncing)
 
 def STATE_LiftOrCliff():

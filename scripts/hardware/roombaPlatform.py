@@ -7,7 +7,8 @@ import hardware.comm as comm
 import hardware.irm as irm
 from sys import stdout
 from time import sleep
-   
+import random
+
 class Platform:
     LEFT = 0
     RIGHT = 1
@@ -38,6 +39,14 @@ class Platform:
             print("EMPTY DATA!")
             self.validData=False
             return
+        
+        leftIRrate = self.getLeftRate()
+        rightIRrate = self.getRightRate()
+        topIRrate =self.getTopRate()
+    
+        self.baseDetected = (leftIRrate[Platform.RIGHT]+leftIRrate[Platform.LEFT]+leftIRrate[Platform.TOP]+\
+        rightIRrate[Platform.RIGHT]+rightIRrate[Platform.LEFT]+rightIRrate[Platform.TOP]+\
+        topIRrate[Platform.RIGHT]+topIRrate[Platform.LEFT]+topIRrate[Platform.TOP])>0
         
         self.batVoltages = [self.bmsData[1],self.bmsData[2],self.bmsData[3]]
         
@@ -81,10 +90,15 @@ class Platform:
             self.standstill=False
             self.standstillAux=3
         
-    def Rotate(self,direction,speed,angle,ramp=5):#in degrees
+    def Rotate(self,direction,speed,angle=0,ramp=200):#in degrees
         comm.Rotate(direction,speed,angle,ramp)
         self.standstill=False
         self.standstillAux=3
+    def RotateRandomDir(self,speed,angle=0,ramp=200):#randomly choose direction to rotate
+        self.Rotate(self.LEFT if bool(random.randint(0,1))else self.RIGHT,speed,angle,ramp)
+        
+    def RotateRandomDirAngle(self,speed,angleMin=30,angleMax=180,ramp=200):#randomly choose direction and angle to rotate
+        self.Rotate(self.LEFT if bool(random.randint(0,1))else self.RIGHT,speed,random.randint(angleMin,angleMax),ramp)
 
     def Stop(self):
         self.Move(0,0)

@@ -124,7 +124,7 @@ def Move(leftMotor,rightMotor,ramp=5,stopWhenBump=True,distance=0):
     except OSError:
         print("OSError in Move()!")
 
-def Rotate(direction,speed,angle,ramp=5):#in degrees
+def Rotate(direction,speed,angle=0,ramp=5):#in degrees
     if direction==LEFT:
         Move(-speed,speed,distance=(int)(angle/180*40),ramp=ramp)
     elif direction==RIGHT:
