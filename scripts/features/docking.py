@@ -14,10 +14,11 @@ lastTimeCharging=0
 baseIsClose=False
 rightBaseBeam=0
 leftBaseBeam=0
-
+baseInFront=False
+baseInFrontTmr=0
 
 def Dock(pl):
-    global baseIsClose,lastTimeCharging,rightBaseBeam,leftBaseBeam,reversing,goodDirection
+    global baseIsClose,lastTimeCharging,rightBaseBeam,leftBaseBeam,reversing,goodDirection,baseInFront,baseInFrontTmr
         
     leftIRrate = pl.getLeftRate()
     rightIRrate = pl.getRightRate()
@@ -39,6 +40,15 @@ def Dock(pl):
     #leftBaseBeam = True if topIRrate[Platform.LEFT]>0 else False
     #rightBaseBeam = True if topIRrate[Platform.LEFT]>0 else False
     
+    if baseInFrontTmr > 10:
+        baseInFront = True
+        baseInFrontTmr = 0
+        
+    if not pl.isCharging and not baseInFront and leftIRrate[Platform.LEFT]+leftIRrate[Platform.RIGHT]>0 and rightIRrate[Platform.LEFT]+rightIRrate[Platform.RIGHT]>0:
+        baseInFrontTmr+=1
+        
+    if pl.isCharging:
+        baseInFront = False
 
     if not pl.isCharging and not pl.liftedUp and not pl.onCliff: #not pl.somethingClose and           
         
@@ -66,46 +76,47 @@ def Dock(pl):
             rightIRrate[Platform.LEFT]==0 and rightIRrate[Platform.RIGHT]!=0:
         
             pl.Move(20,12) #(1)
-            print("R(1)")
+            print("both only RIGHT - R1")
     
         elif leftIRrate[Platform.LEFT]!=0 and leftIRrate[Platform.RIGHT]==0 and\
             rightIRrate[Platform.LEFT]!=0 and rightIRrate[Platform.RIGHT]==0:
         
             pl.Move(12,20) #(2)
-            print("L(2)")
+            print("both only LEFT - L2")
         
+        #left sensor doesn't see anything but right does
         elif leftIRrate[Platform.LEFT]==0 and leftIRrate[Platform.RIGHT]==0 and\
             (rightIRrate[Platform.LEFT]!=0 or rightIRrate[Platform.RIGHT]!=0):
             
             if rightIRrate[Platform.LEFT] < rightIRrate[Platform.RIGHT]:
                 pl.Move(20,12) #(3)
-                print("R(3)")
+                print("only right sees, more RIGHT - R3")
             else:
-                pl.Move(20,12) #(4)
-                print("R(4)")
-    
+                pl.Move(12,20) #(4)
+                print("only right sees, more LEFT - L4")
+        #right sensor doesn't see anything but left does
         elif rightIRrate[Platform.LEFT]==0 and rightIRrate[Platform.RIGHT]==0 and\
             (leftIRrate[Platform.LEFT]!=0 or leftIRrate[Platform.RIGHT]!=0):
             
             if leftIRrate[Platform.LEFT] > leftIRrate[Platform.RIGHT]:
                 pl.Move(12,20) #(5)
-                print("L(5)")
+                print("only left sees, more left - L5")
             else:
-                pl.Move(12,20) #(6)
-                print("L(6)")
+                pl.Move(20,12) #(6)
+                print("only left sees, more right - R6")
         elif rightIRrate[Platform.LEFT]!=0 and leftIRrate[Platform.RIGHT]!=0 :
             
                 if rightIRrate[Platform.RIGHT] > leftIRrate[Platform.LEFT]:
                     #go slightly right
                     pl.Move(20,18) #(7)
-                    print("F(7)")
+                    print("good dir - F(7)")
                 elif rightIRrate[Platform.RIGHT] < leftIRrate[Platform.LEFT]:
                     #go slightly left
                     pl.Move(18,20)
-                    print("F(8)")
+                    print("good dir - F(8)")
                 else:
                     pl.Move(20,20)
-                    print("F(9)")
+                    print("very good dir F(9)")
                 
                 #goodDirection=8
                 print("GOOD DIRECTION!")
@@ -115,27 +126,27 @@ def Dock(pl):
 #            elif topIRrate[Platform.RIGHT]>0:
 #                pl.Move(10,20)
 #                print("L(11)")
-        elif topIRrate[Platform.LEFT]>0 or topIRrate[Platform.RIGHT]>0:
+        elif not baseInFront and (topIRrate[Platform.LEFT]>0 or topIRrate[Platform.RIGHT]>0):#if nothing else but top sensor
         
             if topIRrate[Platform.LEFT]>0:
                 if rightBaseBeam>0:
                     pl.Move(-10,30,distance=10)#base is probably on the left
-                    print("L(13)")
+                    print("TOP left, base probably on left - L(13)")
                     sleep(1)
                 else:
                     pl.Move(20,10)
-                    print("R(10)")
+                    print("TOP left - R(10)")
                     leftBaseBeam=40
-    
-            if topIRrate[Platform.RIGHT]>0:
+                    
+            elif topIRrate[Platform.RIGHT]>0:
                 if leftBaseBeam>0:
                     pl.Move(30,-10,distance=10)#base is probably on the right
-                    print("R(12)")
+                    print("TOP right,base probably on right - R(12)")
                     sleep(1)
                 else:
                     rightBaseBeam=40
                     pl.Move(10,20)
-                    print("L(11)")
+                    print("TOP right - L(11)")
         else:
             if baseIsClose:
                 pl.Move(15,15)
@@ -165,7 +176,6 @@ if __name__ == "__main__":
             pl.Preprocess()
             Dock(pl)
             pl.RefreshTimeout()
-            print(pl.standstill)
             
         except KeyboardInterrupt:
             pl.Move(0,0)
