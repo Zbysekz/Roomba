@@ -13,6 +13,11 @@ bus=0
 LEFT=0
 RIGHT=1
 
+errorCntMotherBoard = 0
+errorCntBMS = 0
+errorCntMotherBoard_CRC = 0
+errorCntBMS_CRC = 0
+
 def Init():
     global bus
     bus = smbus.SMBus(1)    # 0 = /dev/i2c-0 (port I2C0), 1 = /dev/i2c-1 (port I2C1)
@@ -42,7 +47,7 @@ def Init():
     
 
 def ReadMotherBoardData():
-    global bus
+    global errorCntMotherBoard,errorCntMotherBoard_CRC
     try:
         data=[]
 
@@ -58,9 +63,11 @@ def ReadMotherBoardData():
         if(crc!=rcvCRC):
             print("CRC mismatch, real:"+str(crc)+" rcvd:"+str(rcvCRC))
             print(data)
+            errorCntMotherBoard_CRC+=1
             return []
     except OSError:
         print("OSError ReadMotherBoardData()")
+        errorCntMotherBoard+=1
         return[]
     
     modif = [Rescale(data[:6]),Rescale(data[6:10]),data[10],data[11]&0x01,(data[11]&0x02)>>1,(data[11]&0x04)>>2,(data[11]&0x08)>>3,(data[11]&0x10)>>4,(data[11]&0x20)>>5,data[12],data[13]]    
@@ -92,6 +99,8 @@ def ShowMotherBoardData():
         stdout.write("\n") # move the cursor to the next line
 
 def Move(leftMotor,rightMotor,ramp=5,stopWhenBump=True,distance=0):
+    global errorCntMotherBoard
+    
     if(leftMotor>100):
         leftMotor=100
     if(rightMotor>100):
@@ -107,26 +116,39 @@ def Move(leftMotor,rightMotor,ramp=5,stopWhenBump=True,distance=0):
         rightMotor=256+rightMotor
         
     cmdByte = int(stopWhenBump)<<0
-    try:
-        bus.write_byte_data(ADDR_MOTHERBOARD,1,leftMotor)
-        bus.write_byte_data(ADDR_MOTHERBOARD,2,rightMotor)
-        bus.write_byte_data(ADDR_MOTHERBOARD,3,cmdByte)
-        bus.write_byte_data(ADDR_MOTHERBOARD,4,ramp)
-        bus.write_byte_data(ADDR_MOTHERBOARD,5,distance)
-        
-        hash = crc8.crc8()
-        hash.update(bytes([leftMotor,rightMotor,cmdByte,ramp,distance]))
-        
+    
+    sucess=False
+    noOfTries=0
+    while(not sucess or noOfTries>2):
+        try:
+            noOfTries+=1
             
-        crc=int.from_bytes(hash.digest(),byteorder='big')
+            bus.write_byte_data(ADDR_MOTHERBOARD,1,leftMotor)
+            bus.write_byte_data(ADDR_MOTHERBOARD,2,rightMotor)
+            bus.write_byte_data(ADDR_MOTHERBOARD,3,cmdByte)
+            bus.write_byte_data(ADDR_MOTHERBOARD,4,ramp)
+            bus.write_byte_data(ADDR_MOTHERBOARD,5,distance)
+            
+            hash = crc8.crc8()
+            hash.update(bytes([leftMotor,rightMotor,cmdByte,ramp,distance]))
+            
+                
+            crc=int.from_bytes(hash.digest(),byteorder='big')
 
-        bus.write_byte_data(ADDR_MOTHERBOARD,200,crc)
-    except OSError as inst:
-        print("OSError in Move()!")
-        
-        print(type(inst))  
-        print(inst.args)     
-        print(inst)
+            bus.write_byte_data(ADDR_MOTHERBOARD,200,crc)
+            
+            sucess=True
+            
+        except OSError as inst:
+            #print("OSError in Move()!")
+            #print(type(inst))  
+            #print(inst.args)     
+            #print(inst)
+            
+            errorCntMotherBoard+=1
+            
+        if not sucess:
+            print("OSError in Move(), not possible to send!")
 
 def Rotate(direction,speed,angle=0,ramp=5):#in degrees
     if direction==LEFT:
@@ -148,7 +170,7 @@ def BMSgoOff():
     bus.write_byte_data(ADDR_BMS,200,crc)
 
 def ReadBMSData():
-    global bus
+    global errorCntBMS,errorCntBMS_CRC
     try:
         data=[]
 
@@ -164,10 +186,12 @@ def ReadBMSData():
         if(crc!=rcvCRC):
             print("CRC mismatch, real:"+str(crc)+" rcvd:"+str(rcvCRC))
             print(data)
+            errorCntBMS_CRC+=1
             return []
         
     except OSError:
         print("OSError ReadBMSData()")
+        errorCntBMS+=1
         return[]
     
     state="normal" if data[0]==0 else "charging" if data[0]==1 else "low" if data[0]==2 else "unknown"
@@ -191,3 +215,13 @@ def ShowBMSData():
             sleep(0.1)
     except KeyboardInterrupt:
         stdout.write("\n") # move the cursor to the next line
+        
+def getErrorCnt():
+    return [errorCntMotherBoard, errorCntBMS, errorCntMotherBoard_CRC, errorCntBMS_CRC]
+
+def ResetErrorCnt():
+    global errorCntMotherBoard,errorCntBMS,errorCntMotherBoard_CRC,errorCntBMS_CRC
+    errorCntMotherBoard=0
+    errorCntBMS=0
+    errorCntMotherBoard_CRC=0
+    errorCntBMS_CRC=0

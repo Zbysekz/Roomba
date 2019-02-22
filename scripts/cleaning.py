@@ -5,20 +5,13 @@ from features.wallFollowing import WallFollowing
 from utils.stateMachine import StateMachine
 from utils.timer import cTimer
 import random
-import RPi.GPIO as GPIO
+
+from time import sleep
 
 pl  = 0 #platform
 st  = 0 #state machine
 st2 = 0 # state machine for cleaning
 
-PIN_FAN = 16# fan in stack
-PIN_SWEEPER = 21#sweeper
-PIN_BRUSH = 20# main brush
-
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(PIN_FAN, GPIO.OUT)
-GPIO.setup(PIN_SWEEPER, GPIO.OUT)
-GPIO.setup(PIN_BRUSH, GPIO.OUT)
 
 tmr100ms = cTimer()
 puls100ms = False
@@ -35,6 +28,7 @@ cleaningTmr = cTimer()
 leftSpiral = False
 bumpState = 0
 storedState1=None
+storedState2=None
 searchForBaseState=0
 undockState=0
 dockedCorrectlyTmr=0
@@ -58,7 +52,7 @@ def STATE_docked():
     if testTimer.Expired():
         print("GOING DO CLEANING")
         st.NextState(STATE_undock)
-        cleaningTmr.Start(120)
+        cleaningTmr.Start(300)
 
 def STATE_undock():
     global undockState
@@ -70,7 +64,11 @@ def STATE_undock():
         pl.Rotate(Platform.LEFT,60,180)
         undockState=2
     elif undockState==2 and pl.standstill:
+        pl.StartCleaningMotors()
         st.NextState(STATE_cleaning)
+        
+    
+    sleep(0.1)
 
 def STATE_searchForBase():
     global searchForBaseState
@@ -78,7 +76,7 @@ def STATE_searchForBase():
     CheckLiftAndCliff()
     
     if searchForBaseState==0:
-        speed = pl.getDynamicSpeed(30,100)
+        speed = pl.getDynamicSpeed(30,70)
         pl.Move(speed,speed,ramp=20)
         
         if pl.bumper:
@@ -96,7 +94,9 @@ def STATE_searchForBase():
     if pl.baseDetected:
         print("BASE detected! Docking!")
         st.NextState(STATE_docking)
+        
     
+    sleep(0.1)   
 
 def STATE_docking():
     global dockedCorrectlyTmr
@@ -118,6 +118,7 @@ def STATE_docking():
     
     
 def STATE_cleaning():
+    global storedState2
     
     CheckLiftAndCliff()
 
@@ -131,22 +132,27 @@ def STATE_cleaning():
     st2.Run()#run state machine for cleaning
     
     if pl.bumper and st2.currState != STATE_cleaning_bump:
+        storedState2=st2.currState
         st2.NextState(STATE_cleaning_bump)
         
     if st2.currState == STATE_cleaning_spiral:
-        if st2.getStepTime() > 30:
+        if st2.getAcumulatedTime() > 30:
+            st2.ResetAcumulatedTime()
             st2.NextState(STATE_cleaning_wallFollowing)
             
     elif st2.currState == STATE_cleaning_wallFollowing:
-        if st2.getStepTime() > 30:
+        if st2.getAcumulatedTime() > 30:
+            st2.ResetAcumulatedTime()
             st2.NextState(STATE_cleaning_bouncing)
             
     elif st2.currState == STATE_cleaning_bouncing:
-        if st2.getStepTime() > 30:
+        if st2.getAcumulatedTime() > 30:
+            st2.ResetAcumulatedTime()
             st2.NextState(STATE_cleaning_spiral)
     
     if cleaningTmr.Expired():
         print("Time for cleaning expired!")
+        pl.StopCleaningMotors()
         st.NextState(STATE_searchForBase)
     
     
@@ -165,6 +171,8 @@ def STATE_cleaning_spiral():
     if puls100ms:
         if spiralValue < 60:
             spiralValue += 0.3
+            
+    sleep(0.1)
     
 def STATE_cleaning_wallFollowing():
     
@@ -172,11 +180,15 @@ def STATE_cleaning_wallFollowing():
     
 def STATE_cleaning_bouncing():
     
-    speed = pl.getDynamicSpeed(30,100)
+    speed = pl.getDynamicSpeed(30,70)
     pl.Move(speed,speed,ramp=20)
+    
+    
+    sleep(0.1)
 
 def STATE_cleaning_bump():
     global bumpState
+    
     if st2.First():
         bumpState=0
     #rotate and try go straight
@@ -204,7 +216,10 @@ def STATE_cleaning_bump():
             pl.Stop()
             bumpState=0
         elif st2.getStepTime()>2: # we are moving at least 2 secs without bump
-            st2.NextState(STATE_cleaning_bouncing)
+            st2.NextState(storedState2)
+
+
+    sleep(0.1)
 
 def STATE_LiftOrCliff():
     
@@ -260,16 +275,19 @@ def Cleaning():
         STATE_idle,
         STATE_docked,
         STATE_searchForBase,
+        STATE_undock,
         STATE_docking,
         STATE_cleaning,
-        STATE_batteryLow
+        STATE_batteryLow,
+        STATE_LiftOrCliff
     ]
     st = StateMachine(stateList)
 
     stateList2 = [
         STATE_cleaning_spiral,
         STATE_cleaning_wallFollowing,
-        STATE_cleaning_bouncing
+        STATE_cleaning_bouncing,
+        STATE_cleaning_bump
     ]
     st2 = StateMachine(stateList2)
 
@@ -299,6 +317,7 @@ def Cleaning():
             if tmr5s.Expired():
                 tmr5s.Start(5)
                 puls5s=True
+                pl.PrintErrorCnt()
             else:
                 puls5s=False
                 

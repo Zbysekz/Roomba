@@ -8,6 +8,16 @@ import hardware.irm as irm
 from sys import stdout
 from time import sleep
 import random
+import RPi.GPIO as GPIO
+
+PIN_FAN = 16# fan in stack
+PIN_SWEEPER = 21#sweeper
+PIN_BRUSH = 20# main brush
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(PIN_FAN, GPIO.OUT)
+GPIO.setup(PIN_SWEEPER, GPIO.OUT)
+GPIO.setup(PIN_BRUSH, GPIO.OUT)
 
 class Platform:
     LEFT = 0
@@ -26,6 +36,8 @@ class Platform:
         self.standstillAux=0
         self.baseDetected=False
         
+        self.StopCleaningMotors()
+        
     def Connect(self):
         comm.Init()
         irm.Start()
@@ -36,7 +48,7 @@ class Platform:
         self.sensorData = comm.ReadMotherBoardData();
 
         if(self.sensorData ==[] or self.bmsData==[]):
-            comm.Move(0,0)
+            #comm.Move(0,0)
             print("EMPTY DATA!")
             self.validData=False
             return
@@ -55,7 +67,7 @@ class Platform:
         
         self.liftedUp = self.sensorData[3]==0 or self.sensorData[4]==0#wheel switches
         
-        self.onCliff = any([s<0.3 for s in self.sensorData[1]])
+        self.onCliff = any([s<0.15 for s in self.sensorData[1]])
         
         self.isCharging = self.bmsData[0]=='charging'
         
@@ -116,7 +128,21 @@ class Platform:
         return irm.getRightRate()
     def getTopRate(self):
         return irm.getTopRate()
-
+    
+    def PrintErrorCnt(self):
+        print("ERROR STATS:"+str(comm.getErrorCnt()))
+        #comm.ResetErrorCnt()
+    
+    def StartCleaningMotors(self):
+        GPIO.output(PIN_FAN, GPIO.HIGH)
+        GPIO.output(PIN_SWEEPER, GPIO.HIGH)
+        GPIO.output(PIN_BRUSH, GPIO.HIGH)
+        
+    def StopCleaningMotors(self):
+        GPIO.output(PIN_FAN, GPIO.LOW)
+        GPIO.output(PIN_SWEEPER, GPIO.LOW)
+        GPIO.output(PIN_BRUSH, GPIO.LOW)
+        
 
 if __name__ == "__main__":   
 
