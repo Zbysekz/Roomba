@@ -63,6 +63,10 @@ class Platform:
         
         self.batVoltages = [self.bmsData[1],self.bmsData[2],self.bmsData[3]]
         
+        self.veryLowBattery = any([v<3.3 for v in self.batVoltages])
+        self.lowBattery = any([v<3.5 for v in self.batVoltages])
+        
+        
         self.somethingClose = any([s>0.3 for s in self.sensorData[0]])
         
         self.liftedUp = self.sensorData[3]==0 or self.sensorData[4]==0#wheel switches
@@ -134,15 +138,19 @@ class Platform:
         #comm.ResetErrorCnt()
     
     def StartCleaningMotors(self):
+        self.cleaningMotors=True
         GPIO.output(PIN_FAN, GPIO.HIGH)
         GPIO.output(PIN_SWEEPER, GPIO.HIGH)
         GPIO.output(PIN_BRUSH, GPIO.HIGH)
         
     def StopCleaningMotors(self):
+        self.cleaningMotors=False
         GPIO.output(PIN_FAN, GPIO.LOW)
         GPIO.output(PIN_SWEEPER, GPIO.LOW)
         GPIO.output(PIN_BRUSH, GPIO.LOW)
         
+    def getCleaningMotorsState(self):
+        return self.cleaningMotors
 
 if __name__ == "__main__":   
 

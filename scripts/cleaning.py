@@ -32,12 +32,14 @@ storedState2=None
 searchForBaseState=0
 undockState=0
 dockedCorrectlyTmr=0
+storedCleaningMotors=False#if roomba was cleaning before lifted or cliff
+testCleaning=True
 
 def STATE_idle():
     if pl.isCharging:
         print("IS CHARGING!!!!!!")
         st.NextState(STATE_docked)
-        testTimer.Start(20)
+        testTimer.Start(10)
     else:
         st.NextState(STATE_searchForBase)
         
@@ -49,7 +51,7 @@ def STATE_docked():
             print("Not charging anymore")
             st.NextState(STATE_idle)
             
-    if testTimer.Expired():
+    if testTimer.Expired() and testCleaning:
         print("GOING DO CLEANING")
         st.NextState(STATE_undock)
         cleaningTmr.Start(300)
@@ -149,13 +151,28 @@ def STATE_cleaning():
         if st2.getAcumulatedTime() > 30:
             st2.ResetAcumulatedTime()
             st2.NextState(STATE_cleaning_spiral)
+            
+    #avoid going too close to base
+    if pl.getTopRate()[Platform.TOP]>4 and st2.currState != STATE_cleaning_baseClose:
+        print("Base is close,going out of here")
+        st2.NextState(STATE_cleaning_baseClose)
+    
+    if pl.lowBattery:
+        print("Low battery! Going to base!")
+        pl.StopCleaningMotors()
+        st.NextState(STATE_searchForBase)
     
     if cleaningTmr.Expired():
         print("Time for cleaning expired!")
         pl.StopCleaningMotors()
         st.NextState(STATE_searchForBase)
     
-    
+def STATE_cleaning_baseClose():
+    if st2.First():
+        pl.RotateRandomDirAngle(60,30,180)
+    elif pl.standstill:
+        st2.NextState(STATE_cleaning_bouncing)
+        
 def STATE_cleaning_spiral():
     global leftSpiral,spiralValue
     
@@ -180,7 +197,7 @@ def STATE_cleaning_wallFollowing():
     
 def STATE_cleaning_bouncing():
     
-    speed = pl.getDynamicSpeed(30,70)
+    speed = pl.getDynamicSpeed(25,50)
     pl.Move(speed,speed,ramp=20)
     
     
@@ -229,17 +246,21 @@ def STATE_LiftOrCliff():
         
     if not pl.liftedUp and not pl.onCliff:
         st.NextState(storedState1)
+        if storedCleaningMotors:
+            pl.StartCleaningMotors()
     
 
-def STATE_batteryLow():
-    print("Battery low!")
+def STATE_batteryVeryLow():
+    print("Battery very low!")
 
 
 def CheckLiftAndCliff(): # check if you are lifted or on the cliff
-    global storedState1
+    global storedState1,storedCleaningMotors
     
     if pl.liftedUp or pl.onCliff:
         pl.Stop()
+        storedCleaningMotors = pl.getCleaningMotorsState()
+        pl.StopCleaningMotors()
         storedState1 = st.currState
         st.NextState(STATE_LiftOrCliff)
 
@@ -278,16 +299,17 @@ def Cleaning():
         STATE_undock,
         STATE_docking,
         STATE_cleaning,
-        STATE_batteryLow,
+        STATE_batteryVeryLow,
         STATE_LiftOrCliff
     ]
     st = StateMachine(stateList)
 
     stateList2 = [
+        STATE_cleaning_bouncing,
         STATE_cleaning_spiral,
         STATE_cleaning_wallFollowing,
-        STATE_cleaning_bouncing,
-        STATE_cleaning_bump
+        STATE_cleaning_bump,
+        STATE_cleaning_baseClose
     ]
     st2 = StateMachine(stateList2)
 
@@ -298,6 +320,7 @@ def Cleaning():
     
     tmr100ms.Start(0.1)
     tmr5s.Start(5)
+    serverDataTmr.Start(1)
     
     while(1):
         try:
@@ -307,6 +330,9 @@ def Cleaning():
             st.Run()
 
             pl.RefreshTimeout()
+            
+            if pl.veryLowBattery and st.currState != STATE_batteryVeryLow:
+                st.NextState(STATE_batteryVeryLow)
             
             if tmr100ms.Expired():
                 tmr100ms.Start(0.1)
@@ -327,6 +353,7 @@ def Cleaning():
                 
         except KeyboardInterrupt:
             pl.Stop()
+            pl.StopCleaningMotors()
             print("Keyboard interrupt, stopping!")
             break
         
