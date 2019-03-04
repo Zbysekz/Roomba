@@ -22,6 +22,7 @@ uint8_t txBuffer2[BUFFSIZE];
 volatile uint8_t i2c_state;
 volatile uint8_t twi_status;
 
+
 volatile uint8_t regaddr; // Store the Requested Register Address
 volatile uint8_t regdata; // Store the Register Address Data
 
@@ -146,6 +147,7 @@ ISR(TWI_vect)
     switch(twi_status) {
         case TW_SR_SLA_ACK: // 0x60: SLA+W received, ACK returned
             i2c_state=0;    // Start I2C State for Register Address required
+            i2c_commTimeout = 0;
             break;
 
         case TW_SR_DATA_ACK:    // 0x80: data received, ACK returned

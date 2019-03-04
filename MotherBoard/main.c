@@ -1,8 +1,10 @@
 /*
  * main.c
  *
- *  Created on: 3. 4. 2016
- *      Author: Zbysek
+ *  Created on: 4. 3. 2019
+ *      Author: Zbysekz
+ *      Processor: ATmega8
+ *      Fuses: L:0xFF H:0xC8
  */
 
 #include <avr/io.h>
@@ -72,6 +74,7 @@ speedReq2L,speedReq2R;//ramped requested speed
 volatile uint8_t speedRamp=1;//how is the ramp steep
 volatile uint16_t distanceReq=0,distanceReq_last=0;//required distance to travel
 volatile uint8_t standstill;
+volatile uint16_t i2c_commTimeout;//status of communication
 
 uint8_t sideSensors[6],cliffSensors[4],bumpSensorL,bumpSensorR,dirtSensor,motorRswitch,motorLswitch,auxWheelSig;
 uint8_t stopWhenBump=1;
@@ -195,6 +198,11 @@ int main(void)
 			speedReqR=0;speedReqL=0;//stop by ramp
 			distanceReq=0;//reset requirement
 		}
+		/////////////COMM TIMEOUT///////////////////
+		if(i2c_commTimeout > 500){//stop when when we didn't receive any data on i2c for certain time
+			speedReqR=0;speedReqL=0;//stop by ramp
+			distanceReq=0;//reset requirement
+		}
 
 
 		distanceReq_last=distanceReq;
@@ -299,6 +307,8 @@ ISR(TIMER0_OVF_vect)
 
 		distanceL+=enkL;
 		distanceR+=enkR;
+
+		i2c_commTimeout++;
 
 		enkL=0;enkR=0;
 
