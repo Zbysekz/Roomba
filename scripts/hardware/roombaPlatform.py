@@ -7,7 +7,18 @@ import hardware.comm as comm
 import hardware.irm as irm
 from sys import stdout
 from time import sleep
-   
+import random
+import RPi.GPIO as GPIO
+
+PIN_FAN = 16# fan in stack
+PIN_SWEEPER = 21#sweeper
+PIN_BRUSH = 20# main brush
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(PIN_FAN, GPIO.OUT)
+GPIO.setup(PIN_SWEEPER, GPIO.OUT)
+GPIO.setup(PIN_BRUSH, GPIO.OUT)
+
 class Platform:
     LEFT = 0
     RIGHT = 1
@@ -23,6 +34,9 @@ class Platform:
         self.isCharging=False
         self.standstill=False
         self.standstillAux=0
+        self.baseDetected=False
+        
+        self.StopCleaningMotors()
         
     def Connect(self):
         comm.Init()
@@ -34,16 +48,30 @@ class Platform:
         self.sensorData = comm.ReadMotherBoardData();
 
         if(self.sensorData ==[] or self.bmsData==[]):
-            comm.Move(0,0)
+            #comm.Move(0,0)
             print("EMPTY DATA!")
             self.validData=False
             return
+        
+        leftIRrate = self.getLeftRate()
+        rightIRrate = self.getRightRate()
+        topIRrate =self.getTopRate()
+    
+        self.baseDetected = (leftIRrate[Platform.RIGHT]+leftIRrate[Platform.LEFT]+leftIRrate[Platform.TOP]+\
+        rightIRrate[Platform.RIGHT]+rightIRrate[Platform.LEFT]+rightIRrate[Platform.TOP]+\
+        topIRrate[Platform.RIGHT]+topIRrate[Platform.LEFT]+topIRrate[Platform.TOP])>3
+        
+        self.batVoltages = [self.bmsData[1],self.bmsData[2],self.bmsData[3]]
+        
+        self.veryLowBattery = any([v<3.3 for v in self.batVoltages])
+        self.lowBattery = any([v<3.5 for v in self.batVoltages])
+        
         
         self.somethingClose = any([s>0.3 for s in self.sensorData[0]])
         
         self.liftedUp = self.sensorData[3]==0 or self.sensorData[4]==0#wheel switches
         
-        self.onCliff = any([s<0.3 for s in self.sensorData[1]])
+        self.onCliff = any([s<0.15 for s in self.sensorData[1]])
         
         self.isCharging = self.bmsData[0]=='charging'
         
@@ -79,10 +107,15 @@ class Platform:
             self.standstill=False
             self.standstillAux=3
         
-    def Rotate(self,direction,speed,angle,ramp=5):#in degrees
+    def Rotate(self,direction,speed,angle=0,ramp=200):#in degrees
         comm.Rotate(direction,speed,angle,ramp)
         self.standstill=False
         self.standstillAux=3
+    def RotateRandomDir(self,speed,angle=0,ramp=200):#randomly choose direction to rotate
+        self.Rotate(self.LEFT if bool(random.randint(0,1))else self.RIGHT,speed,angle,ramp)
+        
+    def RotateRandomDirAngle(self,speed,angleMin=30,angleMax=180,ramp=200):#randomly choose direction and angle to rotate
+        self.Rotate(self.LEFT if bool(random.randint(0,1))else self.RIGHT,speed,random.randint(angleMin,angleMax),ramp)
 
     def Stop(self):
         self.Move(0,0)
@@ -99,7 +132,25 @@ class Platform:
         return irm.getRightRate()
     def getTopRate(self):
         return irm.getTopRate()
-
+    
+    def PrintErrorCnt(self):
+        print("ERROR STATS:"+str(comm.getErrorCnt()))
+        #comm.ResetErrorCnt()
+    
+    def StartCleaningMotors(self):
+        self.cleaningMotors=True
+        GPIO.output(PIN_FAN, GPIO.HIGH)
+        GPIO.output(PIN_SWEEPER, GPIO.HIGH)
+        GPIO.output(PIN_BRUSH, GPIO.HIGH)
+        
+    def StopCleaningMotors(self):
+        self.cleaningMotors=False
+        GPIO.output(PIN_FAN, GPIO.LOW)
+        GPIO.output(PIN_SWEEPER, GPIO.LOW)
+        GPIO.output(PIN_BRUSH, GPIO.LOW)
+        
+    def getCleaningMotorsState(self):
+        return self.cleaningMotors
 
 if __name__ == "__main__":   
 
