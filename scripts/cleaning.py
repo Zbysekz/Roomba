@@ -7,6 +7,8 @@ from utils.timer import cTimer
 import random
 
 from time import sleep
+import calendar
+from datetime import date,datetime
 
 pl  = 0 #platform
 st  = 0 #state machine
@@ -251,8 +253,10 @@ def STATE_LiftOrCliff():
     
 
 def STATE_batteryVeryLow():
-    print("Battery very low!")
+    sleep(5)
 
+def STATE_motorsOverloaded():
+    sleep(5)
 
 def CheckLiftAndCliff(): # check if you are lifted or on the cliff
     global storedState1,storedCleaningMotors
@@ -300,7 +304,8 @@ def Cleaning():
         STATE_docking,
         STATE_cleaning,
         STATE_batteryVeryLow,
-        STATE_LiftOrCliff
+        STATE_LiftOrCliff,
+        STATE_motorsOverloaded
     ]
     st = StateMachine(stateList)
 
@@ -332,7 +337,12 @@ def Cleaning():
             pl.RefreshTimeout()
             
             if pl.veryLowBattery and st.currState != STATE_batteryVeryLow:
+                print("Battery very low!")
                 st.NextState(STATE_batteryVeryLow)
+            
+            if pl.motorsOverloaded and st.currState != STATE_motorsOverloaded:
+                print("Motors overloaded!")
+                st.NextState(STATE_motorsOverloaded)
             
             if tmr100ms.Expired():
                 tmr100ms.Start(0.1)
@@ -361,6 +371,32 @@ def Cleaning():
     
     print("END")
 
+
+def CheckCleaningSchedule():
+    
+    myDate = date.today()
+    thisDay = calendar.day_name[myDate.weekday()]
+    
+    thisHour = datetime.now().time().hour
+    thisMinute = datetime.now().time().minute
+    
+    lst = []
+    
+    with open("cleaningSchedule.txt","r") as f:
+        for l in f:
+            s = l.split(',')
+            s[1:] = s[1].split(':')
+            s[1] = int(s[1])
+            s[2] = int(s[2])
+            lst.append(s)
+            
+    
+    
+    for l in lst:
+        if thisDay == l[0] and thisHour == l[1] and thisMinute == l[2]:
+            print("Scheduled! Lets go cleaning!")
+            return True
+    return False
 
 
 if __name__ == "__main__":

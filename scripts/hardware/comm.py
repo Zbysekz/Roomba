@@ -18,6 +18,9 @@ errorCntBMS = 0
 errorCntMotherBoard_CRC = 0
 errorCntBMS_CRC = 0
 
+lastMotorLCmd=0
+lastMotorRCmd=0
+
 def Init():
     global bus
     bus = smbus.SMBus(1)    # 0 = /dev/i2c-0 (port I2C0), 1 = /dev/i2c-1 (port I2C1)
@@ -99,7 +102,7 @@ def ShowMotherBoardData():
         stdout.write("\n") # move the cursor to the next line
 
 def Move(leftMotor,rightMotor,ramp=5,stopWhenBump=True,distance=0):
-    global errorCntMotherBoard
+    global errorCntMotherBoard,lastMotorLCmd,lastMotorRCmd
     
     if(leftMotor>100):
         leftMotor=100
@@ -110,6 +113,10 @@ def Move(leftMotor,rightMotor,ramp=5,stopWhenBump=True,distance=0):
     if(rightMotor<-100):
         rightMotor=-100
         
+    
+    lastMotorLCmd = leftMotor
+    lastMotorRCmd = rightMotor
+    
     if(leftMotor<0):
         leftMotor=256+leftMotor
     if(rightMotor<0):
@@ -149,6 +156,9 @@ def Move(leftMotor,rightMotor,ramp=5,stopWhenBump=True,distance=0):
             
         if not sucess:
             print("OSError in Move(), not possible to send!")
+            
+def getLastMotorCmds():
+    return [lastMotorLCmd,lastMotorRCmd]
 
 def Rotate(direction,speed,angle=0,ramp=5):#in degrees
     if direction==LEFT:

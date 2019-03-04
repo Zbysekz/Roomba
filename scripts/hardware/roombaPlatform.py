@@ -81,9 +81,21 @@ class Platform:
         
         if self.standstillAux>0:
             self.standstillAux-=1
+            
+        self.speedL = self.sensorData[9]
+        self.speedR = self.sensorData[10]
+        
+        lastCmds = comm.getLastMotorCmds()
+        
+        lastCmds = [abs(lastCmds[0]),abs(lastCmds[1])]
+        
+        self.motorsOverloaded = False
+        # if diff  is more than half of command
+        if not self.standstill and (lastCmds[0]/10.0 - self.speedL>lastCmds[0]/20.0 or lastCmds[1]/10.0 - self.speedR>lastCmds[1]/20.0):  
+            self.motorsOverloaded = True
         
         self.validData = True
-        
+    
     def getDynamicSpeed(self,minSpeed,maxSpeed): #return speed accoring to obstacles in front of roomba
         
         if not self.validData:
