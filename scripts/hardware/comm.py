@@ -4,6 +4,7 @@ import smbus
 import crc8
 from sys import stdout
 from time import sleep
+from datetime import datetime
 from enum import Enum
 
 ADDR_MOTHERBOARD = 0x27      #7 bit address (will be left shifted to add the read write bit)
@@ -27,23 +28,23 @@ def Init():
 
     try:
         if bus.read_byte_data(ADDR_BMS,0) == 66:
-            print("BMS OK")
+            Log("BMS OK")
         else:
-            print("BMS ERROR!")
+            Log("BMS ERROR!")
             return False
     except OSError:
-        print("BMS ERROR2!");
+        Log("BMS ERROR2!");
         return False
 
     #check communication
     try:
         if bus.read_byte_data(ADDR_MOTHERBOARD,0) == 66:
-            print("Motherboard OK")
+            Log("Motherboard OK")
         else:
-            print("Motherboard ERROR!")
+            Log("Motherboard ERROR!")
             return False
     except OSError:
-        print("Motherboard ERROR2!");
+        Log("Motherboard ERROR2!");
         return False
     
     return True
@@ -64,12 +65,12 @@ def ReadMotherBoardData():
         
         crc=int.from_bytes(hash.digest(),byteorder='big')
         if(crc!=rcvCRC):
-            print("CRC mismatch, real:"+str(crc)+" rcvd:"+str(rcvCRC))
-            print(data)
+            Log("CRC mismatch, real:"+str(crc)+" rcvd:"+str(rcvCRC))
+            Log(data)
             errorCntMotherBoard_CRC+=1
             return []
     except OSError:
-        print("OSError ReadMotherBoardData()")
+        Log("OSError ReadMotherBoardData()")
         errorCntMotherBoard+=1
         return[]
     
@@ -147,15 +148,15 @@ def Move(leftMotor,rightMotor,ramp=5,stopWhenBump=True,distance=0):
             sucess=True
             
         except OSError as inst:
-            #print("OSError in Move()!")
-            #print(type(inst))  
-            #print(inst.args)     
-            #print(inst)
+            #Log("OSError in Move()!")
+            #Log(type(inst))  
+            #Log(inst.args)     
+            #Log(inst)
             
             errorCntMotherBoard+=1
             
         if not sucess:
-            print("OSError in Move(), not possible to send!")
+            Log("OSError in Move(), not possible to send!")
             
 def getLastMotorCmds():
     return [lastMotorLCmd,lastMotorRCmd]
@@ -194,13 +195,13 @@ def ReadBMSData():
         
         crc=int.from_bytes(hash.digest(),byteorder='big')
         if(crc!=rcvCRC):
-            print("CRC mismatch, real:"+str(crc)+" rcvd:"+str(rcvCRC))
-            print(data)
+            Log("CRC mismatch, real:"+str(crc)+" rcvd:"+str(rcvCRC))
+            Log(data)
             errorCntBMS_CRC+=1
             return []
         
     except OSError:
-        print("OSError ReadBMSData()")
+        Log("OSError ReadBMSData()")
         errorCntBMS+=1
         return[]
     
@@ -235,3 +236,10 @@ def ResetErrorCnt():
     errorCntBMS=0
     errorCntMotherBoard_CRC=0
     errorCntBMS_CRC=0
+    
+def Log(s):
+    print("LOGGED:"+str(s))
+
+    dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with open("logs/comm.log","a") as file:
+        file.write(dateStr+" >> "+str(s)+"\n")

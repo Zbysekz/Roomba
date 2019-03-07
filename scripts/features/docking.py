@@ -4,6 +4,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath('__file__'))))
 from hardware.roombaPlatform import Platform
 from time import sleep
+from datetime import datetime
 import time
 import random
 from utils.timer import cTimer
@@ -35,9 +36,9 @@ def Dock(pl):
     rightIRrate = pl.getRightRate()
     topIRrate = pl.getTopRate()
     
-    #print("L:"+str(leftIRrate[0])+","+str(leftIRrate[1])+","+str(leftIRrate[2]))
-    #print("R:"+str(rightIRrate[0])+","+str(rightIRrate[1])+","+str(rightIRrate[2]))
-    #print("T:"+str(topIRrate[0])+","+str(topIRrate[1])+","+str(topIRrate[2]))
+    #Log("L:"+str(leftIRrate[0])+","+str(leftIRrate[1])+","+str(leftIRrate[2]))
+    #Log("R:"+str(rightIRrate[0])+","+str(rightIRrate[1])+","+str(rightIRrate[2]))
+    #Log("T:"+str(topIRrate[0])+","+str(topIRrate[1])+","+str(topIRrate[2]))
     
     baseIsClose = True if topIRrate[Platform.TOP]>0 else False
     
@@ -52,13 +53,13 @@ def Dock(pl):
     #rightBaseBeam = True if topIRrate[Platform.LEFT]>0 else False
     
     if baseInFront and not pl.isCharging:
-        print("BASE IN FRONT!")
+        Log("BASE IN FRONT!")
     
     baseInFront = baseInFrontTmr > 10
     baseLost = baseLostTmr > 30
     
     if baseLost:
-        print("BASE IS LOST!!")
+        Log("BASE IS LOST!!")
         baseDetected = False
         baseLostTmr = 0
         lookingForSignal = True
@@ -96,7 +97,7 @@ def Dock(pl):
         if reversing>0:
             reversing-=1
         elif pl.bumper:
-            print("bumper")
+            Log("bumper")
             pl.Move(0,0)
             sleep(1)
             reverseCounter +=1
@@ -113,9 +114,9 @@ def Dock(pl):
         elif goodDirection>0:
             goodDirection-=1
             pl.Move(20,20)
-            print("KEEPING DIRECTION (F1)")
+            Log("KEEPING DIRECTION (F1)")
         elif lookingForSignal:
-            print("LOOKING FOR A BASE")
+            Log("LOOKING FOR A BASE")
             if lookingForSignalState == 0:
                 if pl.standstill:# wait until you stop
                     lookingForSignalState=1
@@ -128,11 +129,11 @@ def Dock(pl):
             elif lookingForSignalState == 2:
                 if leftIRrate[Platform.LEFT]+leftIRrate[Platform.RIGHT]+rightIRrate[Platform.LEFT]+rightIRrate[Platform.RIGHT]>0:
                     pl.Move(0,0)    
-                    print("Found signal when looking (1)")
+                    Log("Found signal when looking (1)")
                     lookingForSignal=False
                 elif pl.standstill:
                     pl.Move(0,0) 
-                    print("Finished looking without signal (2)")
+                    Log("Finished looking without signal (2)")
                     lookingForSignal=False
                     
 
@@ -140,13 +141,13 @@ def Dock(pl):
             rightIRrate[Platform.LEFT]==0 and rightIRrate[Platform.RIGHT]!=0:
         
             pl.Move(20,12) #(1)
-            print("both only RIGHT - R1")
+            Log("both only RIGHT - R1")
     
         elif leftIRrate[Platform.LEFT]!=0 and leftIRrate[Platform.RIGHT]==0 and\
             rightIRrate[Platform.LEFT]!=0 and rightIRrate[Platform.RIGHT]==0:
         
             pl.Move(12,20) #(2)
-            print("both only LEFT - L2")
+            Log("both only LEFT - L2")
         
         #left sensor doesn't see anything but right does
         elif leftIRrate[Platform.LEFT]==0 and leftIRrate[Platform.RIGHT]==0 and\
@@ -154,89 +155,95 @@ def Dock(pl):
             
             if rightIRrate[Platform.LEFT] < rightIRrate[Platform.RIGHT]:
                 pl.Move(20,12) #(3)
-                print("only right sees, more RIGHT - R3")
+                Log("only right sees, more RIGHT - R3")
             else:
                 pl.Move(20,12) #(4)
-                print("only right sees, more LEFT - R4")
+                Log("only right sees, more LEFT - R4")
         #right sensor doesn't see anything but left does
         elif rightIRrate[Platform.LEFT]==0 and rightIRrate[Platform.RIGHT]==0 and\
             (leftIRrate[Platform.LEFT]!=0 or leftIRrate[Platform.RIGHT]!=0):
             
             if leftIRrate[Platform.LEFT] > leftIRrate[Platform.RIGHT]:
                 pl.Move(12,20) #(5)
-                print("only left sees, more left - L5")
+                Log("only left sees, more left - L5")
             else:
                 pl.Move(12,20) #(6)
-                print("only left sees, more right - L6")
+                Log("only left sees, more right - L6")
         elif rightIRrate[Platform.LEFT]!=0 and leftIRrate[Platform.RIGHT]!=0 :
             
                 if rightIRrate[Platform.RIGHT] > leftIRrate[Platform.LEFT]:
                     #go slightly right
                     pl.Move(20,18) #(7)
-                    print("good dir - F7")
+                    Log("good dir - F7")
                 elif rightIRrate[Platform.RIGHT] < leftIRrate[Platform.LEFT]:
                     #go slightly left
                     pl.Move(18,20)
-                    print("good dir - F8")
+                    Log("good dir - F8")
                 else:
                     pl.Move(20,20)
-                    print("very good dir F9")
+                    Log("very good dir F9")
                 
                 #goodDirection=8
-                #print("GOOD DIRECTION!")
+                #Log("GOOD DIRECTION!")
 #            elif topIRrate[Platform.LEFT]>0:
 #                pl.Move(20,10)
-#                print("R(10)")
+#                Log("R(10)")
 #            elif topIRrate[Platform.RIGHT]>0:
 #                pl.Move(10,20)
-#                print("L(11)")
+#                Log("L(11)")
         elif not baseInFront and (topIRrate[Platform.LEFT]>0 or topIRrate[Platform.RIGHT]>0):#if nothing else but top sensor
         
             if topIRrate[Platform.LEFT]>0:
                 if rightBaseBeam>0:
                     pl.Move(-10,30,distance=10)#base is probably on the left
-                    print("TOP left, base probably on left - L(13)")
+                    Log("TOP left, base probably on left - L(13)")
                     sleep(1)
                 else:
                     pl.Move(20,10)
-                    print("TOP left - R(10)")
+                    Log("TOP left - R(10)")
                     leftBaseBeam=40
                     
             elif topIRrate[Platform.RIGHT]>0:
                 if leftBaseBeam>0:
                     pl.Move(30,-10,distance=10)#base is probably on the right
-                    print("TOP right,base probably on right - R(12)")
+                    Log("TOP right,base probably on right - R(12)")
                     sleep(1)
                 else:
                     rightBaseBeam=40
                     pl.Move(10,20)
-                    print("TOP right - L(11)")
+                    Log("TOP right - L(11)")
         else:
             #if you bumped at least twice and base is close, try turning to find proper angle to base
             if baseIsClose and reverseCounter>=2:
                 lookingForSignal=True
                 lookingForSignalState=0
                 reverseCounter=0
-                print("Start looking for signal because too many reverses")
+                Log("Start looking for signal because too many reverses")
             if baseIsClose:
                 pl.Move(15,15)
-                print("base is close")
+                Log("base is close")
             else:
                 pl.Move(30,30)
-                print("(-)")
+                Log("(-)")
     
     
     else:
         if pl.isCharging:
             lastTimeCharging = time.time()
         pl.Move(0,0)
-        #print("(S)"+str(pl.somethingClose)+" "+str(pl.liftedUp) +" "+ str(pl.onCliff))
+        #Log("(S)"+str(pl.somethingClose)+" "+str(pl.liftedUp) +" "+ str(pl.onCliff))
         
     sleep(0.1)
     
     
     return not totalLostTmr.Expired()#if total lost timer expired, quit docking
 
+def Log(s):
+    print("LOGGED:"+str(s))
+
+    dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with open("logs/docking.log","a") as file:
+        file.write(dateStr+" >> "+str(s)+"\n")
 
 if __name__ == "__main__":
 
@@ -252,12 +259,12 @@ if __name__ == "__main__":
             
         except KeyboardInterrupt:
             pl.Move(0,0)
-            print("Keyboard interrupt, stopping!")
+            Log("Keyboard interrupt, stopping!")
             break
     
     pl.Terminate()
     
-    print("END")
+    Log("END")
 
         
 

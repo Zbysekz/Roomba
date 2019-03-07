@@ -36,10 +36,11 @@ undockState=0
 dockedCorrectlyTmr=0
 storedCleaningMotors=False#if roomba was cleaning before lifted or cliff
 testCleaning=True
+permaDir=None
 
 def STATE_idle():
     if pl.isCharging:
-        print("IS CHARGING!!!!!!")
+        Log("IS CHARGING!!!!!!")
         st.NextState(STATE_docked)
         testTimer.Start(10)
     else:
@@ -50,13 +51,13 @@ def STATE_docked():
     if st.getStepTime()>5:
         st.ResetStepTime()
         if not pl.isCharging:
-            print("Not charging anymore")
+            Log("Not charging anymore")
             st.NextState(STATE_idle)
             
-    if testTimer.Expired() and testCleaning:
-        print("GOING DO CLEANING")
+    if CheckCleaningSchedule():#testTimer.Expired() and testCleaning:
+        Log("GOING DO SCHEDULED CLEANING!")
         st.NextState(STATE_undock)
-        cleaningTmr.Start(300)
+        cleaningTmr.Start(600)#10min
 
 def STATE_undock():
     global undockState
@@ -75,7 +76,10 @@ def STATE_undock():
     sleep(0.1)
 
 def STATE_searchForBase():
-    global searchForBaseState
+    global searchForBaseState,permaDir
+    
+    if st.First():
+        permaDir = Platform.LEFT if bool(random.randint(0,1))else Platform.RIGHT
     
     CheckLiftAndCliff()
     
@@ -90,13 +94,13 @@ def STATE_searchForBase():
         pl.Move(-50,-50,10)
         searchForBaseState=2
     elif searchForBaseState==2 and pl.standstill:
-        pl.RotateRandomDirAngle(speed=60)
+        pl.RotateRandomAngle(direction=permaDir,speed=60,angleMin=15,angleMax=60)
         searchForBaseState=3
     elif searchForBaseState==3 and pl.standstill:
         searchForBaseState=0
     
     if pl.baseDetected:
-        print("BASE detected! Docking!")
+        Log("BASE detected! Docking!")
         st.NextState(STATE_docking)
         
     
@@ -149,29 +153,29 @@ def STATE_cleaning():
             st2.ResetAcumulatedTime()
             st2.NextState(STATE_cleaning_bouncing)
             
-    elif st2.currState == STATE_cleaning_bouncing:
-        if st2.getAcumulatedTime() > 30:
+    elif st2.currState == STATE_cleaning_bouncing:#if you are bouncing and some time elapsed and you traveled some distance without bump, go spiral
+        if st2.getAcumulatedTime() > 30 and pl.straightDistanceTraveled>100:
             st2.ResetAcumulatedTime()
             st2.NextState(STATE_cleaning_spiral)
             
     #avoid going too close to base
     if pl.getTopRate()[Platform.TOP]>4 and st2.currState != STATE_cleaning_baseClose:
-        print("Base is close,going out of here")
+        Log("Base is close,going out of here")
         st2.NextState(STATE_cleaning_baseClose)
     
     if pl.lowBattery:
-        print("Low battery! Going to base!")
+        Log("Low battery! Going to base!")
         pl.StopCleaningMotors()
         st.NextState(STATE_searchForBase)
     
     if cleaningTmr.Expired():
-        print("Time for cleaning expired!")
+        Log("Time for cleaning expired!")
         pl.StopCleaningMotors()
         st.NextState(STATE_searchForBase)
     
 def STATE_cleaning_baseClose():
     if st2.First():
-        pl.RotateRandomDirAngle(60,30,180)
+        pl.RotateRandomAngle(Platform.LEFT if bool(random.randint(0,1))else Platform.RIGHT,60,30,180)#rotate to random dir by random angle
     elif pl.standstill:
         st2.NextState(STATE_cleaning_bouncing)
         
@@ -219,7 +223,7 @@ def STATE_cleaning_bump():
         if pl.bumper:
             bumpState=0
         else:
-            pl.Rotate(pl.LEFT,50,60)
+            pl.Rotate(pl.LEFT,50,20)
             bumpState=2
         
     if bumpState==2 and pl.standstill:
@@ -244,7 +248,7 @@ def STATE_LiftOrCliff():
     
     pl.Stop()
     if puls5s:
-        print("Lifted or on cliff!")
+        Log("Lifted or on cliff!")
         
     if not pl.liftedUp and not pl.onCliff:
         st.NextState(storedState1)
@@ -286,9 +290,9 @@ def SendDataToServer():
         crc+=d
     sent = sock.send(bytes([111,222]+data+[int(crc/256),crc%256,222]))
     
-    print(data)
-    print(bytes([111,222]+data+[int(crc/256),crc%256,222]))
-    print("DATA SENT TO SERVER!!!")
+    Log(data)
+    Log(bytes([111,222]+data+[int(crc/256),crc%256,222]))
+    Log("DATA SENT TO SERVER!!!")
 
     sock.close()
 
@@ -337,11 +341,12 @@ def Cleaning():
             pl.RefreshTimeout()
             
             if pl.veryLowBattery and st.currState != STATE_batteryVeryLow:
-                print("Battery very low!")
+                Log("Battery very low!")
+                Log(pl.batVoltages)
                 st.NextState(STATE_batteryVeryLow)
             
             if pl.motorsOverloaded and st.currState != STATE_motorsOverloaded:
-                print("Motors overloaded!")
+                Log("Motors overloaded!")
                 st.NextState(STATE_motorsOverloaded)
             
             if tmr100ms.Expired():
@@ -364,12 +369,12 @@ def Cleaning():
         except KeyboardInterrupt:
             pl.Stop()
             pl.StopCleaningMotors()
-            print("Keyboard interrupt, stopping!")
+            Log("Keyboard interrupt, stopping!")
             break
         
     pl.Terminate()
     
-    print("END")
+    Log("END")
 
 
 def CheckCleaningSchedule():
@@ -394,10 +399,16 @@ def CheckCleaningSchedule():
     
     for l in lst:
         if thisDay == l[0] and thisHour == l[1] and thisMinute == l[2]:
-            print("Scheduled! Lets go cleaning!")
+            Log("Scheduled! Lets go cleaning!")
             return True
     return False
 
+def Log(s):
+    print("LOGGED:"+str(s))
+
+    dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with open("logs/cleaning.log","a") as file:
+        file.write(dateStr+" >> "+str(s)+"\n")
 
 if __name__ == "__main__":
 

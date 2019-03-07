@@ -4,6 +4,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath('__file__'))))#adds parent directory to path
 from hardware.roombaPlatform import Platform
 from time import sleep
+from datetime import datetime
 import time
 
 afterBump = False
@@ -14,9 +15,9 @@ def WallFollowing(pl):
 
     if pl.isCharging or pl.liftedUp or pl.onCliff or not pl.validData:#not pl.somethingClose and  
         pl.Move(0,0)
-        print("STOP:"+str(pl.isCharging)+" "+str(pl.liftedUp)+" "+str(pl.onCliff)+" "+str(pl.validData))
+        Log("STOP:"+str(pl.isCharging)+" "+str(pl.liftedUp)+" "+str(pl.onCliff)+" "+str(pl.validData))
     elif afterBump>0:
-        print("afterBump:"+str(afterBump))
+        Log("afterBump:"+str(afterBump))
 
         if afterBump==1 and pl.standstill:
             afterBump=0
@@ -54,14 +55,20 @@ def WallFollowing(pl):
         elif steer<-maxSteerR:
             steer=-maxSteerR
             
-        print(sideSensors)
-        print("steer:"+str(steer))
+        Log(sideSensors)
+        Log("steer:"+str(steer))
 
         pl.Move(40-int((steer)*50),45+int((steer)*50),ramp=200)   #more steer means more to the LEFT
         
         
     sleep(0.1)
     
+def Log(s):
+    print("LOGGED:"+str(s))
+
+    dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with open("logs/wallFollowing.log","a") as file:
+        file.write(dateStr+" >> "+str(s)+"\n")
 
 
 if __name__ == "__main__":
@@ -77,12 +84,12 @@ if __name__ == "__main__":
             pl.RefreshTimeout()
         except KeyboardInterrupt:
             pl.Move(0,0)
-            print("Keyboard interrupt, stopping!")
+            Log("Keyboard interrupt, stopping!")
             break
     
     pl.Terminate()
     
-    print("END")
+    Log("END")
 
         
 

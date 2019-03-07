@@ -1,8 +1,7 @@
 Monday,12:00
 Tuesday,5:00
 Wednesday,12:00
-Thursday,5:00
+Thursday,15:57
 Friday,17:00
 Saturday,17:00
 Sunday,17:00
-Monday,20:17

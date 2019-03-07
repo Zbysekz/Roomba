@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import time
+from datetime import datetime
 
 class StateMachine:
     
@@ -26,7 +27,7 @@ class StateMachine:
 
     def Run(self):
         if self.nextState != "" and self.currState != self.nextState:
-            print("Transition to:"+self.nextState.__name__)
+            Log("Transition to:"+self.nextState.__name__)
             self.currState = self.nextState
             self.__stepTime = time.time()
             self.__first=True
@@ -58,3 +59,10 @@ class StateMachine:
     
     def ResetAcumulatedTime(self):
         self.__acumulatedTimeList[self.stateList.index(self.currState)]=0
+        
+def Log(s):
+    print("LOGGED:"+str(s))
+
+    dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with open("logs/stateMachine.log","a") as file:
+        file.write(dateStr+" >> "+str(s)+"\n")

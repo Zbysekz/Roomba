@@ -2,6 +2,7 @@
 # -*- coding:utf-8 -*-
 import RPi.GPIO as GPIO
 import time
+from datetime import datetime
 from multiprocessing import Process,Lock,Value,Array
 
 ERROR = 0x00
@@ -62,7 +63,7 @@ def getCode(pin):
             break
         
     
-    #print(span)
+    #Log(span)
     res = []
     
     for i in span:
@@ -74,7 +75,7 @@ def getCode(pin):
             res.append("H")
 
     #if pin == PIN_R:
-        #print(res)
+        #Log(res)
     
     if len(res)==16 and 'TT' not in res[:-1] and 'TT' == res[-1]:#if timeout character is only at the last index
         num=0
@@ -93,7 +94,7 @@ def ReadL(lock,tmrTimeout,leftRateTmp):
         
         code = getCode(PIN_L);
         #if code != ERROR:
-        #print("L:0x%02x"%code)
+        #Log("L:0x%02x"%code)
         lock.acquire()
         tmrTimeout.value-=1
         
@@ -105,14 +106,14 @@ def ReadL(lock,tmrTimeout,leftRateTmp):
             leftRateTmp[2]+=1
             
         lock.release()
-    print("tL process terminated")
+    Log("tL process terminated")
         
 def ReadR(lock,tmrTimeout,rightRateTmp):
     while(not endThreads and tmrTimeout.value!=0):
         
         code = getCode(PIN_R);
         #if code != ERROR:
-        #print("R:0x%02x"%code)
+        #Log("R:0x%02x"%code)
         lock.acquire()
         tmrTimeout.value-=1
         
@@ -124,14 +125,14 @@ def ReadR(lock,tmrTimeout,rightRateTmp):
             rightRateTmp[2]+=1
             
         lock.release()
-    print("tR process terminated")
+    Log("tR process terminated")
         
 def ReadT(lock,tmrTimeout,topRateTmp):
     while(not endThreads and tmrTimeout.value!=0):
         
         code = getCode(PIN_T);
         #if code != ERROR:
-        #print("T:0x%02x"%code)
+        #Log("T:0x%02x"%code)
         lock.acquire()
         tmrTimeout.value-=1
         
@@ -143,7 +144,7 @@ def ReadT(lock,tmrTimeout,topRateTmp):
             topRateTmp[2]+=1
         
         lock.release()
-    print("tT process terminated")
+    Log("tT process terminated")
 
 def RateSampler(lock,tmrTimeout,leftRate,rightRate,topRate,leftRateTmp,rightRateTmp,topRateTmp,prInfo):
     
@@ -179,12 +180,12 @@ def RateSampler(lock,tmrTimeout,leftRate,rightRate,topRate,leftRateTmp,rightRate
         
         
         if prInfo:
-            print("L:"+str(leftRate[0])+","+str(leftRate[1])+","+str(leftRate[2]))
-            print("R:"+str(rightRate[0])+","+str(rightRate[1])+","+str(rightRate[2]))
-            print("T:"+str(topRate[0])+","+str(topRate[1])+","+str(topRate[2]))
+            Log("L:"+str(leftRate[0])+","+str(leftRate[1])+","+str(leftRate[2]))
+            Log("R:"+str(rightRate[0])+","+str(rightRate[1])+","+str(rightRate[2]))
+            Log("T:"+str(topRate[0])+","+str(topRate[1])+","+str(topRate[2]))
 
         time.sleep(0.5)
-    print("tS process terminated")
+    Log("tS process terminated")
 
 def getLeftRate():
     return [leftRate[0],leftRate[1],leftRate[2]]
@@ -233,8 +234,16 @@ def Terminate():
     tS.terminate()
     tT.terminate()
     
+def Log(s):
+    print("LOGGED:"+str(s))
+
+    dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with open("logs/irm.log","a") as file:
+        file.write(dateStr+" >> "+str(s)+"\n")
+
+    
 if __name__ == "__main__":  
-    print('IRM Start')
+    Log('IRM Start')
     
     printInfo = True
     Start()
@@ -244,12 +253,12 @@ if __name__ == "__main__":
             tmrTimeout.value=300
             time.sleep(5)
     except KeyboardInterrupt:
-        print("Keyboard interrupt, stopping!")
+        Log("Keyboard interrupt, stopping!")
     
-    print("TERMINATING")
+    Log("TERMINATING")
     Terminate()
 
         #else:
-        #    print("ERROR")
+        #    Log("ERROR")
 #except KeyboardInterrupt:
  #   GPIO.cleanup();

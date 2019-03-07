@@ -7,6 +7,7 @@ import hardware.comm as comm
 import hardware.irm as irm
 from sys import stdout
 from time import sleep
+from datetime import datetime
 import random
 import RPi.GPIO as GPIO
 
@@ -35,6 +36,7 @@ class Platform:
         self.standstill=False
         self.standstillAux=0
         self.baseDetected=False
+        self.straightDistanceTraveled=0
         
         self.StopCleaningMotors()
         
@@ -49,7 +51,7 @@ class Platform:
 
         if(self.sensorData ==[] or self.bmsData==[]):
             #comm.Move(0,0)
-            print("EMPTY DATA!")
+            Log("EMPTY DATA!")
             self.validData=False
             return
         
@@ -85,6 +87,10 @@ class Platform:
         self.speedL = self.sensorData[9]
         self.speedR = self.sensorData[10]
         
+        self.straightDistanceTraveled+=self.speedL + self.speedR#integrate speed
+        if self.bumper:
+            self.straightDistanceTraveled=0
+        
         lastCmds = comm.getLastMotorCmds()
         
         lastCmds = [abs(lastCmds[0]),abs(lastCmds[1])]
@@ -92,9 +98,10 @@ class Platform:
         self.motorsOverloaded = False
         # if diff  is more than half of command
         if not self.standstill and (lastCmds[0]/10.0 - self.speedL>lastCmds[0]/20.0 or lastCmds[1]/10.0 - self.speedR>lastCmds[1]/20.0):  
-            self.motorsOverloaded = True
+            self.motorsOverloaded = False
         
         self.validData = True
+    
     
     def getDynamicSpeed(self,minSpeed,maxSpeed): #return speed accoring to obstacles in front of roomba
         
@@ -126,8 +133,8 @@ class Platform:
     def RotateRandomDir(self,speed,angle=0,ramp=200):#randomly choose direction to rotate
         self.Rotate(self.LEFT if bool(random.randint(0,1))else self.RIGHT,speed,angle,ramp)
         
-    def RotateRandomDirAngle(self,speed,angleMin=30,angleMax=180,ramp=200):#randomly choose direction and angle to rotate
-        self.Rotate(self.LEFT if bool(random.randint(0,1))else self.RIGHT,speed,random.randint(angleMin,angleMax),ramp)
+    def RotateRandomAngle(self,direction,speed,angleMin=30,angleMax=180,ramp=200):#randomly choose direction and angle to rotate
+        self.Rotate(direction,speed,random.randint(angleMin,angleMax),ramp)
 
     def Stop(self):
         self.Move(0,0)
@@ -146,7 +153,7 @@ class Platform:
         return irm.getTopRate()
     
     def PrintErrorCnt(self):
-        print("ERROR STATS:"+str(comm.getErrorCnt()))
+        Log("ERROR STATS:"+str(comm.getErrorCnt()))
         #comm.ResetErrorCnt()
     
     def StartCleaningMotors(self):
@@ -163,6 +170,14 @@ class Platform:
         
     def getCleaningMotorsState(self):
         return self.cleaningMotors
+
+def Log(s):
+    print("LOGGED:"+str(s))
+
+    dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with open("logs/roombaPlatform.log","a") as file:
+        file.write(dateStr+" >> "+str(s)+"\n")
+
 
 if __name__ == "__main__":   
 
@@ -182,12 +197,12 @@ if __name__ == "__main__":
                     irm.tmrTimeout.value=300
                     irm.time.sleep(5)
             except KeyboardInterrupt:
-                print("Keyboard interrupt, stopping!")
+                Log("Keyboard interrupt, stopping!")
     
-            print("TERMINATING")
+            Log("TERMINATING")
             irm.Terminate()
         elif('OFF' in sys.argv[1]):
-            print("Shutting down BMS and raspberry")
+            Log("Shutting down BMS and raspberry")
             comm.BMSgoOff()
             from subprocess import call
             call("shutdown -h now", shell=True)
