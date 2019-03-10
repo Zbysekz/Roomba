@@ -12,6 +12,7 @@ from utils.timer import cTimer
 goodDirection = 0
 reversing = 0
 
+tmr100ms = cTimer()
 
 lastTimeCharging=0
 baseIsClose=False
@@ -19,18 +20,18 @@ rightBaseBeam=0
 leftBaseBeam=0
 baseInFront=False
 baseInFrontTmr=0
-baseDetectedTmr=0
 baseLostTmr=0
 reverseCounter = 0
 lookingForSignal = False #roomba rotates and tries to find good signal
 lookingForSignalState=0
 totalLostTmr = cTimer()
-
+goBackAndTryAgain= False
 TOTAL_LOST_TMR=20 # if you dont detect any signal from base for this time,quit docking routine
 
 def Dock(pl):
     global baseIsClose,lastTimeCharging,rightBaseBeam,leftBaseBeam,reversing,goodDirection,baseInFront,baseInFrontTmr
-    global baseLost,baseLostTmr,baseDetected,reverseCounter,lookingForSignal,lookingForSignalState,totalLostTmr
+    global baseLost,baseLostTmr,baseDetected,reverseCounter,lookingForSignal,lookingForSignalState,totalLostTmr,tmr100ms
+    global goBackAndTryAgain
         
     leftIRrate = pl.getLeftRate()
     rightIRrate = pl.getRightRate()
@@ -42,11 +43,18 @@ def Dock(pl):
     
     baseIsClose = True if topIRrate[Platform.TOP]>0 else False
     
+    if tmr100ms.Expired() or not tmr100ms.started:
+        tmr100ms.Start(0.1)
+        puls100ms=True
+    else:
+        puls100ms=False
 
-    if leftBaseBeam > 0:
+    if leftBaseBeam > 0 and puls100ms:
         leftBaseBeam-=1
-    if rightBaseBeam > 0:
+    if rightBaseBeam > 0 and puls100ms:
         rightBaseBeam-=1
+        
+    
     
         
     #leftBaseBeam = True if topIRrate[Platform.LEFT]>0 else False
@@ -55,8 +63,8 @@ def Dock(pl):
     if baseInFront and not pl.isCharging:
         Log("BASE IN FRONT!")
     
-    baseInFront = baseInFrontTmr > 10
-    baseLost = baseLostTmr > 30
+    baseInFront = baseInFrontTmr > 20
+    baseLost = baseLostTmr > 70
     
     if baseLost:
         Log("BASE IS LOST!!")
@@ -68,6 +76,9 @@ def Dock(pl):
     
     if lookingForSignal:#do not count for base lost, if you are looking for a signal
         baseLostTmr = 0
+        
+    if baseInFront:
+        reverseCounter=0
     
     if not pl.isCharging:
         if pl.baseDetected:
@@ -76,7 +87,7 @@ def Dock(pl):
         else:
             if not totalLostTmr.started:
                 totalLostTmr.Start(TOTAL_LOST_TMR)
-            if baseDetected and baseLostTmr<100:
+            if baseDetected and baseLostTmr<100 and puls100ms:
                 baseLostTmr+=1
     else:
         baseDetected = False
@@ -86,33 +97,49 @@ def Dock(pl):
     # if we are not charging, more middle both signals means that base is in front of you,
     if not pl.isCharging:
         if leftIRrate[Platform.LEFT]+leftIRrate[Platform.RIGHT]>0 and rightIRrate[Platform.LEFT]+rightIRrate[Platform.RIGHT]>0:
-            if baseInFrontTmr<30:
+            if baseInFrontTmr<30 and puls100ms:
                 baseInFrontTmr+=1
-        elif baseInFrontTmr>0:
+        elif baseInFrontTmr>0 and puls100ms:
             baseInFrontTmr-=1
         
 
     if not pl.isCharging and not pl.liftedUp and not pl.onCliff: #not pl.somethingClose and           
         
         if reversing>0:
-            reversing-=1
+            if(puls100ms):
+                reversing-=1
+        elif goBackAndTryAgain:
+            print("Going back further to try again")
+            if pl.standstill:
+                goBackAndTryAgain=False
+                lookingForSignal=True
+                lookingForSignalState=0
+                
         elif pl.bumper:
             Log("bumper")
             pl.Move(0,0)
             sleep(1)
             reverseCounter +=1
             
+            #if you bumped at least twice and base is close, try turning to find proper angle to base
+            if baseIsClose and reverseCounter>2:
+                goBackAndTryAgain=True
+                reverseCounter=0
+                Log("Going more back and start looking for a base because too many reverses")
+                pl.Move(-40,-40,distance=100)
+                reversing=5
+    
             #but if there was charging signal just before bump, go back a little
-            if time.time() - lastTimeCharging < 10:
+            elif time.time() - lastTimeCharging < 10:
                 pl.Move(-10,-10,distance=15)
                 reversing=10
             else:
                 pl.Move(-60,-60,distance=40)
                 reversing=12
-    
-    
+                
         elif goodDirection>0:
-            goodDirection-=1
+            if puls100ms:
+                goodDirection-=1
             pl.Move(20,20)
             Log("KEEPING DIRECTION (F1)")
         elif lookingForSignal:
@@ -213,12 +240,6 @@ def Dock(pl):
                     pl.Move(10,20)
                     Log("TOP right - L(11)")
         else:
-            #if you bumped at least twice and base is close, try turning to find proper angle to base
-            if baseIsClose and reverseCounter>=2:
-                lookingForSignal=True
-                lookingForSignalState=0
-                reverseCounter=0
-                Log("Start looking for signal because too many reverses")
             if baseIsClose:
                 pl.Move(15,15)
                 Log("base is close")
@@ -233,7 +254,7 @@ def Dock(pl):
         pl.Move(0,0)
         #Log("(S)"+str(pl.somethingClose)+" "+str(pl.liftedUp) +" "+ str(pl.onCliff))
         
-    sleep(0.1)
+    #sleep(0.1)
     
     
     return not totalLostTmr.Expired()#if total lost timer expired, quit docking

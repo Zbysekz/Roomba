@@ -45,9 +45,10 @@ class Platform:
         irm.Start()
         
     def Preprocess(self):
-        self.bmsData = comm.ReadBMSData()
-
-        self.sensorData = comm.ReadMotherBoardData();
+        
+        self.bmsData = comm.ReadBMSData()#takes approx 7ms
+        self.sensorData = comm.ReadMotherBoardData()#takes approx. 13ms
+        
 
         if(self.sensorData ==[] or self.bmsData==[]):
             #comm.Move(0,0)
@@ -74,6 +75,10 @@ class Platform:
         self.liftedUp = self.sensorData[3]==0 or self.sensorData[4]==0#wheel switches
         
         self.onCliff = any([s<0.15 for s in self.sensorData[1]])
+        
+        self.cleaningMotorsCurrent = self.sensorData[2]-115 #module gives 1,5V for zero current (range 0-255 : 0-3,3V)
+        self.cleaningMotorsOverloaded = True if abs(self.cleaningMotorsCurrent)>20 else False
+        self.cleaningMotorsCurrentStandstill = True if abs(self.cleaningMotorsCurrent)<10 else False
         
         self.isCharging = self.bmsData[0]=='charging'
         
@@ -179,16 +184,19 @@ def Log(s):
         file.write(dateStr+" >> "+str(s)+"\n")
 
 
-if __name__ == "__main__":   
+if __name__ == "__main__":
 
     comm.Init();
+    pl = Platform()
 
     if(len(sys.argv)>1):
         if('BMS' in sys.argv[1]):
             comm.ShowBMSData()
         elif('MOTHER' in sys.argv[1]):
             comm.Move(0,0)
+            #pl.StartCleaningMotors()
             comm.ShowMotherBoardData()
+            
         elif('IRM' in sys.argv[1]):
             irm.Start()
             
