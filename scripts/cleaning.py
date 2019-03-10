@@ -6,6 +6,8 @@ from utils.stateMachine import StateMachine
 from utils.timer import cTimer
 import random
 
+import os
+import time 
 from time import sleep
 import calendar
 from datetime import date,datetime
@@ -35,15 +37,20 @@ searchForBaseState=0
 undockState=0
 dockedCorrectlyTmr=0
 storedCleaningMotors=False#if roomba was cleaning before lifted or cliff
-testCleaning=True
 permaDir=None
 
+testCleaning=False
+
+
 def STATE_idle():
+    
+    # determine where you are
     if pl.isCharging:
-        Log("IS CHARGING!!!!!!")
+        Log("Started up at docking station")
         st.NextState(STATE_docked)
         testTimer.Start(10)
     else:
+        Log("Started outside docking station, going to dock!")
         st.NextState(STATE_searchForBase)
         
 def STATE_docked():
@@ -54,8 +61,13 @@ def STATE_docked():
             Log("Not charging anymore")
             st.NextState(STATE_idle)
             
-    if CheckCleaningSchedule():#testTimer.Expired() and testCleaning:
+    if CheckCleaningSchedule():
         Log("GOING DO SCHEDULED CLEANING!")
+        st.NextState(STATE_undock)
+        cleaningTmr.Start(600)#10min
+        
+    if testTimer.Expired() and testCleaning:
+        Log("GOING DO TEST CLEANING!")
         st.NextState(STATE_undock)
         cleaningTmr.Start(600)#10min
 
@@ -91,7 +103,7 @@ def STATE_searchForBase():
             searchForBaseState=1
             pl.Stop()
     elif searchForBaseState==1 and pl.standstill:
-        pl.Move(-50,-50,10)
+        pl.Move(-50,-50,5)
         searchForBaseState=2
     elif searchForBaseState==2 and pl.standstill:
         pl.RotateRandomAngle(direction=permaDir,speed=60,angleMin=15,angleMax=60)
@@ -195,7 +207,7 @@ def STATE_cleaning_spiral():
         if spiralValue < 60:
             spiralValue += 0.3
             
-    sleep(0.1)
+    #sleep(0.1)
     
 def STATE_cleaning_wallFollowing():
     
@@ -207,31 +219,31 @@ def STATE_cleaning_bouncing():
     pl.Move(speed,speed,ramp=20)
     
     
-    sleep(0.1)
+    #sleep(0.1)
 
 def STATE_cleaning_bump():
     global bumpState
     
     if st2.First():
         bumpState=0
-    #rotate and try go straight
-    if pl.standstill and bumpState==0:
-        pl.Move(-50,-50,10)
+   
+    if pl.standstill and bumpState==0:#after bump go back
+        pl.Move(-100,-100,5)
         bumpState=1
         
-    if pl.standstill and bumpState==1:#we finished move back
+    if pl.standstill and bumpState==1:#finished move back,rotate
         if pl.bumper:
             bumpState=0
         else:
             pl.Rotate(pl.LEFT,50,20)
             bumpState=2
         
-    if bumpState==2 and pl.standstill:
+    if bumpState==2 and pl.standstill:#finished rotation, go front
         if pl.bumper:
             pl.Stop()
             bumpState=0
         else:
-            pl.Move(20,20)
+            pl.Move(40,40)
             bumpState=3
     
     if bumpState==3:
@@ -242,7 +254,7 @@ def STATE_cleaning_bump():
             st2.NextState(storedState2)
 
 
-    sleep(0.1)
+    #sleep(0.1)
 
 def STATE_LiftOrCliff():
     
@@ -257,11 +269,21 @@ def STATE_LiftOrCliff():
     
 
 def STATE_batteryVeryLow():
-    sleep(5)
+    #wait if somebody has put me to the docking station
+    if(st.getStepTime()>=30):
+        if pl.isCharging:
+            print("On very low battery,but now on docking station!")
+            st.NextState(STATE_docked)
+        else:
+            os.system('Shutdown.sh')#shutdown RPi and BMS
+            
 
 def STATE_motorsOverloaded():
     sleep(5)
-
+    
+def STATE_cleaningMotorsOverloaded():
+    sleep(5)
+    
 def CheckLiftAndCliff(): # check if you are lifted or on the cliff
     global storedState1,storedCleaningMotors
     
@@ -298,7 +320,7 @@ def SendDataToServer():
 
 #----------------------------------------------------------------------------
 def Cleaning():
-    global st,pl,st2,tmr100ms,puls100ms,tmr5s,puls5s
+    global st,pl,st2,tmr100ms,puls100ms,tmr5s,puls5s,storedState1
     
     stateList = [
         STATE_idle,
@@ -309,7 +331,8 @@ def Cleaning():
         STATE_cleaning,
         STATE_batteryVeryLow,
         STATE_LiftOrCliff,
-        STATE_motorsOverloaded
+        STATE_motorsOverloaded,
+        STATE_cleaningMotorsOverloaded
     ]
     st = StateMachine(stateList)
 
@@ -331,8 +354,31 @@ def Cleaning():
     tmr5s.Start(5)
     serverDataTmr.Start(1)
     
+    current_milis_time = lambda: int(round(time.time() * 1000))
+    
+    
+    #---------------------------self check--------------------------
+    while(not pl.validData):
+        Log("Waiting for first valid data from Motherboard...")
+        pl.Preprocess()
+        sleep(1)
+        
+    if not pl.cleaningMotorsCurrentStandstill:
+        Log("Current of cleaning motors is not zero! Possible fault connection!")
+        Log("Current:"+str(pl.cleaningMotorsCurrent))
+        while(True):
+            pass
+    
+    #------------------------- end self check------------------------
+    
+    last_dt = current_milis_time()
+    
     while(1):
         try:
+            #dt = current_milis_time()-last_dt
+            #print("DT:"+str(dt))
+            #last_dt = current_milis_time()
+            
             pl.Preprocess()
 
             #main state machine
@@ -340,14 +386,28 @@ def Cleaning():
 
             pl.RefreshTimeout()
             
-            if pl.veryLowBattery and st.currState != STATE_batteryVeryLow:
+            if not pl.isCharging and pl.veryLowBattery and st.currState != STATE_batteryVeryLow:
                 Log("Battery very low!")
                 Log(pl.batVoltages)
+                pl.Stop()
+                pl.StopCleaningMotors()
                 st.NextState(STATE_batteryVeryLow)
             
             if pl.motorsOverloaded and st.currState != STATE_motorsOverloaded:
                 Log("Motors overloaded!")
+                pl.Stop()
+                pl.StopCleaningMotors()
+                storedState1 = st.currState
                 st.NextState(STATE_motorsOverloaded)
+                
+            if pl.cleaningMotorsOverloaded and st.currState != STATE_cleaningMotorsOverloaded:
+                Log("Cleaning motors overloaded!")
+                Log("Current:"+str(pl.cleaningMotorsCurrent))
+                pl.Stop()
+                pl.StopCleaningMotors()
+                storedState1 = st.currState
+                st.NextState(STATE_cleaningMotorsOverloaded)
+             
             
             if tmr100ms.Expired():
                 tmr100ms.Start(0.1)
