@@ -76,7 +76,7 @@ volatile uint16_t distanceReq=0,distanceReq_last=0;//required distance to travel
 volatile uint8_t standstill;
 volatile uint16_t i2c_commTimeout;//status of communication
 
-uint8_t sideSensors[6],cliffSensors[4],bumpSensorL,bumpSensorR,dirtSensor,motorRswitch,motorLswitch,auxWheelSig;
+uint8_t sideSensors[6],cliffSensors[4],bumpSensorL,bumpSensorR,currentSensor,motorRswitch,motorLswitch,auxWheelSig;
 uint8_t stopWhenBump=1;
 
 #ifdef DEBUG
@@ -182,7 +182,7 @@ int main(void)
 
 		printf("bump1: %d,bump2: %d",bumpSensors[0],bumpSensors[1]);
 
-		printf("dirt: %d,motorL_SW: %d,motorP_SW: %d, auxwheel:%d",dirtSensor,motorLswitch,motorPswitch,auxWheelSig);
+		printf("dirt: %d,motorL_SW: %d,motorP_SW: %d, auxwheel:%d",currentSensor,motorLswitch,motorPswitch,auxWheelSig);
 
 		printf("\n");*/
 
@@ -382,7 +382,8 @@ void ReadMUX(){
 	setBit(&pSel2,Sel2);
 	_delay_ms(1);
 
-	dirtSensor = getModulatedValue(3);//MUX2
+	//scale to fit to byte
+	currentSensor = (uint8_t)(ReadADC(3)/4);//MUX2
 
 	setBit(&pSel0,Sel0);//5
 	clearBit(&pSel1,Sel1);
@@ -505,7 +506,6 @@ void MotorL_stop(){
 	clearBit(&pML1S,ML1S);
 }
 
-// Read the 8 most significant bits
 // of the AD conversion result
 uint16_t ReadADC(uint8_t adc_input) {//read voltages in 0,01V
   ADMUX = adc_input | (1 << REFS0);

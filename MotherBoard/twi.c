@@ -229,7 +229,7 @@ void UpdateTxData(){//called at the beginning and every time after CRC value is 
 	buff[8]=cliffSensors[2];
 	buff[9]=cliffSensors[3];
 
-	buff[10]=dirtSensor;
+	buff[10]=currentSensor;
 	buff[11]=motorLswitch*0x01+motorRswitch*0x02+auxWheelSig*0x04+bumpSensorL*0x08+bumpSensorR*0x10+standstill*0x20;
 	buff[12]=speedL;
 	buff[13]=speedR;
