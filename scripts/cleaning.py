@@ -6,7 +6,10 @@ from utils.stateMachine import StateMachine
 from utils.timer import cTimer
 import random
 
-import os
+import os,inspect
+path = os.path.dirname(inspect.getfile(inspect.currentframe()))
+os.chdir(path)#change CWD to this file location, to keep required folders and files reachable
+
 import time 
 from time import sleep
 import calendar
@@ -27,6 +30,7 @@ serverDataTmr = cTimer()
 
 testTimer = cTimer()
 cleaningTmr = cTimer()
+restCleaningTmr = cTimer()
 
 #------------- auxilliary vars ---------------------
 leftSpiral = False
@@ -50,11 +54,21 @@ def STATE_idle():
         st.NextState(STATE_docked)
         testTimer.Start(10)
     else:
-        Log("Started outside docking station, going to dock!")
-        st.NextState(STATE_searchForBase)
+        if testCleaning:
+            Log("GOING DO TEST CLEANING!")
+            pl.StartCleaningMotors()
+            st.NextState(STATE_cleaning)
+            cleaningTmr.Start(600)#10min
+        else:        
+            Log("Started outside docking station, going to dock!")
+            st.NextState(STATE_searchForBase)
         
 def STATE_docked():
 
+    if st.First():
+        pl.StopCleaningMotors();
+        restCleaningTmr.Start(20)#for testing cleaning dock break
+        
     if st.getStepTime()>5:
         st.ResetStepTime()
         if not pl.isCharging:
@@ -66,7 +80,7 @@ def STATE_docked():
         st.NextState(STATE_undock)
         cleaningTmr.Start(600)#10min
         
-    if testTimer.Expired() and testCleaning:
+    if testCleaning and restCleaningTmr.Expired():
         Log("GOING DO TEST CLEANING!")
         st.NextState(STATE_undock)
         cleaningTmr.Start(600)#10min
@@ -182,7 +196,7 @@ def STATE_cleaning():
     
     if cleaningTmr.Expired():
         Log("Time for cleaning expired!")
-        pl.StopCleaningMotors()
+        #pl.StopCleaningMotors()
         st.NextState(STATE_searchForBase)
     
 def STATE_cleaning_baseClose():
@@ -258,15 +272,17 @@ def STATE_cleaning_bump():
 
 def STATE_LiftOrCliff():
     
-    pl.Stop()
-    if puls5s:
+    if st.First():
         Log("Lifted or on cliff!")
+        Log("SensorData:"+str(pl.sensorData[1]))
         
-    if not pl.liftedUp and not pl.onCliff:
+        if pl.onCliff:#if on cliff,move backwards
+            pl.Move(-40,-40,50)
+    elif pl.standstill and not pl.liftedUp and not pl.onCliff:
         st.NextState(storedState1)
         if storedCleaningMotors:
             pl.StartCleaningMotors()
-    
+        
 
 def STATE_batteryVeryLow():
     #wait if somebody has put me to the docking station
@@ -290,7 +306,8 @@ def CheckLiftAndCliff(): # check if you are lifted or on the cliff
     if pl.liftedUp or pl.onCliff:
         pl.Stop()
         storedCleaningMotors = pl.getCleaningMotorsState()
-        pl.StopCleaningMotors()
+        if pl.liftedUp:#stop cleaning only if lifted up
+            pl.StopCleaningMotors()
         storedState1 = st.currState
         st.NextState(STATE_LiftOrCliff)
 
@@ -321,6 +338,8 @@ def SendDataToServer():
 #----------------------------------------------------------------------------
 def Cleaning():
     global st,pl,st2,tmr100ms,puls100ms,tmr5s,puls5s,storedState1
+    
+    Log("-------------------CLEANING SCRIPT STARTED--------------------------")
     
     stateList = [
         STATE_idle,
@@ -362,11 +381,16 @@ def Cleaning():
         Log("Waiting for first valid data from Motherboard...")
         pl.Preprocess()
         sleep(1)
-        
+    
+    pl.Preprocess()
+    
     if not pl.cleaningMotorsCurrentStandstill:
         Log("Current of cleaning motors is not zero! Possible fault connection!")
         Log("Current:"+str(pl.cleaningMotorsCurrent))
         while(True):
+            pl.Preprocess()
+            Log("Current:"+str(pl.cleaningMotorsCurrent))
+            sleep(1)
             pass
     
     #------------------------- end self check------------------------
@@ -429,7 +453,7 @@ def Cleaning():
         except KeyboardInterrupt:
             pl.Stop()
             pl.StopCleaningMotors()
-            Log("Keyboard interrupt, stopping!")
+            Log("------------Keyboard interrupt, stopping!---------------")
             break
         
     pl.Terminate()
@@ -467,6 +491,7 @@ def Log(s):
     print("LOGGED:"+str(s))
 
     dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
     with open("logs/cleaning.log","a") as file:
         file.write(dateStr+" >> "+str(s)+"\n")
 

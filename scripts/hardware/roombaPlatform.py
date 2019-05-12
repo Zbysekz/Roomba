@@ -37,6 +37,9 @@ class Platform:
         self.standstillAux=0
         self.baseDetected=False
         self.straightDistanceTraveled=0
+        self.cleaningMotorsCurrent_raw0=0
+        self.cleaningMotorsCurrent_raw1=0
+        self.cleaningMotorsCurrent_raw2=0
         
         self.StopCleaningMotors()
         
@@ -76,8 +79,12 @@ class Platform:
         
         self.onCliff = any([s<0.15 for s in self.sensorData[1]])
         
-        self.cleaningMotorsCurrent = self.sensorData[2]-115 #module gives 1,5V for zero current (range 0-255 : 0-3,3V)
-        self.cleaningMotorsOverloaded = True if abs(self.cleaningMotorsCurrent)>20 else False
+        self.cleaningMotorsCurrent_raw2 = self.cleaningMotorsCurrent_raw1
+        self.cleaningMotorsCurrent_raw1 = self.cleaningMotorsCurrent_raw0
+        self.cleaningMotorsCurrent_raw0 = self.sensorData[2]-115 #module gives 1,5V for zero current (range 0-255 : 0-3,3V)
+        self.cleaningMotorsCurrent = (self.cleaningMotorsCurrent_raw0 + self.cleaningMotorsCurrent_raw1 + self.cleaningMotorsCurrent_raw2)/3
+        
+        self.cleaningMotorsOverloaded = True if abs(self.cleaningMotorsCurrent)>35 else False
         self.cleaningMotorsCurrentStandstill = True if abs(self.cleaningMotorsCurrent)<10 else False
         
         self.isCharging = self.bmsData[0]=='charging'
