@@ -384,6 +384,7 @@ def Cleaning():
     
     pl.Preprocess()
     
+    sleep(3)#wait to stabilize zero current
     if not pl.cleaningMotorsCurrentStandstill:
         Log("Current of cleaning motors is not zero! Possible fault connection!")
         Log("Current:"+str(pl.cleaningMotorsCurrent))
