@@ -443,13 +443,13 @@ def Cleaning():
             if tmr5s.Expired():
                 tmr5s.Start(5)
                 puls5s=True
-                pl.PrintErrorCnt()
             else:
                 puls5s=False
                 
             if serverDataTmr.Expired():
                 serverDataTmr.Start(600)
                 SendDataToServer()
+                pl.PrintErrorCnt()
                 
         except KeyboardInterrupt:
             pl.Stop()
