@@ -27,5 +27,5 @@ extern volatile uint16_t distanceReq;
 
 extern volatile uint16_t i2c_commTimeout;//status of communication
 
-extern uint8_t sideSensors[6],cliffSensors[4],bumpSensorL,bumpSensorR,dirtSensor,motorRswitch,motorLswitch,auxWheelSig;
+extern uint8_t sideSensors[6],cliffSensors[4],bumpSensorL,bumpSensorR,currentSensor,motorRswitch,motorLswitch,auxWheelSig;
 extern uint8_t stopWhenBump;
