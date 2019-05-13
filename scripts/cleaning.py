@@ -59,6 +59,9 @@ def STATE_idle():
             pl.StartCleaningMotors()
             st.NextState(STATE_cleaning)
             cleaningTmr.Start(600)#10min
+        elif pl.liftedUp or pl.onCliff:
+            Log("Lifted! Waiting..")
+            st.NextState(STATE_manualStop)#somebody lifted me(probably from dock), wait
         else:        
             Log("Started outside docking station, going to dock!")
             st.NextState(STATE_searchForBase)
@@ -276,8 +279,12 @@ def STATE_LiftOrCliff():
         Log("Lifted or on cliff!")
         Log("SensorData:"+str(pl.sensorData[1]))
         
-        if pl.onCliff:#if on cliff,move backwards
+        if pl.onCliff and not pl.liftedUp:#if just on cliff,move backwards
             pl.Move(-40,-40,50)
+    
+    if pl.liftedUp:
+        pl.StopCleaningMotors()
+    
     elif pl.standstill and not pl.liftedUp and not pl.onCliff:
         st.NextState(storedState1)
         if storedCleaningMotors:
@@ -288,7 +295,7 @@ def STATE_batteryVeryLow():
     #wait if somebody has put me to the docking station
     if(st.getStepTime()>=30):
         if pl.isCharging:
-            print("On very low battery,but now on docking station!")
+            Log("On very low battery,but now on docking station!")
             st.NextState(STATE_docked)
         else:
             os.system('Shutdown.sh')#shutdown RPi and BMS
@@ -300,10 +307,16 @@ def STATE_motorsOverloaded():
 def STATE_cleaningMotorsOverloaded():
     sleep(5)
     
+def STATE_manualStop():
+    if pl.isCharging:
+        Log("Manually docked to station")
+        st.NextState(STATE_docked)
+    
 def CheckLiftAndCliff(): # check if you are lifted or on the cliff
     global storedState1,storedCleaningMotors
     
     if pl.liftedUp or pl.onCliff:
+        Log("Lifted up or on Clif!!")
         pl.Stop()
         storedCleaningMotors = pl.getCleaningMotorsState()
         if pl.liftedUp:#stop cleaning only if lifted up
@@ -351,7 +364,8 @@ def Cleaning():
         STATE_batteryVeryLow,
         STATE_LiftOrCliff,
         STATE_motorsOverloaded,
-        STATE_cleaningMotorsOverloaded
+        STATE_cleaningMotorsOverloaded,
+        STATE_manualStop
     ]
     st = StateMachine(stateList)
 
@@ -433,6 +447,23 @@ def Cleaning():
                 storedState1 = st.currState
                 st.NextState(STATE_cleaningMotorsOverloaded)
              
+             
+             # buttons ------------------------------------------
+            if pl.btn1 and st.currState!=STATE_manualStop:
+                pl.Stop()
+                pl.StopCleaningMotors()
+                st.NextState(STATE_manualStop)
+            
+            if pl.btn2 and st.currState!=STATE_undock:
+                Log("GOING DO MANUALLY STARTED CLEANING!")
+                if pl.isCharging:
+                    st.NextState(STATE_undock)
+                else:
+                    pl.StartCleaningMotors()
+                    st.NextState(STATE_cleaning)
+        
+                cleaningTmr.Start(600)#10min
+            # buttons ------------------------------------------
             
             if tmr100ms.Expired():
                 tmr100ms.Start(0.1)

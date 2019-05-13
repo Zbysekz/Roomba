@@ -15,10 +15,19 @@ PIN_FAN = 16# fan in stack
 PIN_SWEEPER = 21#sweeper
 PIN_BRUSH = 20# main brush
 
+PIN_BTN1 = 13# button
+PIN_BTN2 = 19# button
+PIN_BTN3 = 26# button
+
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(PIN_FAN, GPIO.OUT)
 GPIO.setup(PIN_SWEEPER, GPIO.OUT)
 GPIO.setup(PIN_BRUSH, GPIO.OUT)
+
+
+GPIO.setup(PIN_BTN1, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(PIN_BTN2, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(PIN_BTN3, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 class Platform:
     LEFT = 0
@@ -40,6 +49,10 @@ class Platform:
         self.cleaningMotorsCurrent_raw0=0
         self.cleaningMotorsCurrent_raw1=0
         self.cleaningMotorsCurrent_raw2=0
+        
+        self.btn1=False
+        self.btn2=False
+        self.btn3=False
         
         self.StopCleaningMotors()
         
@@ -111,6 +124,10 @@ class Platform:
         # if diff  is more than half of command
         if not self.standstill and (lastCmds[0]/10.0 - self.speedL>lastCmds[0]/20.0 or lastCmds[1]/10.0 - self.speedR>lastCmds[1]/20.0):  
             self.motorsOverloaded = False
+        
+        self.btn1=not GPIO.input(PIN_BTN1)
+        self.btn2=not GPIO.input(PIN_BTN2)
+        self.btn3=not GPIO.input(PIN_BTN3)
         
         self.validData = True
     
