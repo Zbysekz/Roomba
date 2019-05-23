@@ -18,6 +18,7 @@ lastTimeCharging=0
 baseIsClose=False
 rightBaseBeam=0
 leftBaseBeam=0
+baseDetected=False
 baseInFront=False
 baseInFrontTmr=0
 baseLostTmr=0
@@ -27,11 +28,12 @@ lookingForSignalState=0
 totalLostTmr = cTimer()
 goBackAndTryAgain= False
 TOTAL_LOST_TMR=20 # if you dont detect any signal from base for this time,quit docking routine
+reductionRatio = 1.0 # if you are getting close to base, make smaller and smaller direction corrections
 
 def Dock(pl):
     global baseIsClose,lastTimeCharging,rightBaseBeam,leftBaseBeam,reversing,goodDirection,baseInFront,baseInFrontTmr
     global baseLost,baseLostTmr,baseDetected,reverseCounter,lookingForSignal,lookingForSignalState,totalLostTmr,tmr100ms
-    global goBackAndTryAgain
+    global goBackAndTryAgain,reductionRatio
         
     leftIRrate = pl.getLeftRate()
     rightIRrate = pl.getRightRate()
@@ -72,6 +74,7 @@ def Dock(pl):
         baseLostTmr = 0
         lookingForSignal = True
         lookingForSignalState = 0
+        reductionRatio=1.0
         pl.Move(0,0)
     
     if lookingForSignal:#do not count for base lost, if you are looking for a signal
@@ -93,6 +96,7 @@ def Dock(pl):
         baseDetected = False
         baseLostTmr = 0
         reverseCounter = 0
+        reductionRatio=1.0
         
     # if we are not charging, more middle both signals means that base is in front of you,
     if not pl.isCharging:
@@ -106,6 +110,7 @@ def Dock(pl):
     if not pl.isCharging and not pl.liftedUp and not pl.onCliff: #not pl.somethingClose and           
         
         if reversing>0:
+            reductionRatio=1.0
             if(puls100ms):
                 reversing-=1
         elif goBackAndTryAgain:
@@ -167,13 +172,13 @@ def Dock(pl):
         elif leftIRrate[Platform.LEFT]==0 and leftIRrate[Platform.RIGHT]!=0 and\
             rightIRrate[Platform.LEFT]==0 and rightIRrate[Platform.RIGHT]!=0:
         
-            pl.Move(20,12) #(1)
+            pl.Move(20,19-int(7*reductionRatio)) #(1)
             Log("both only RIGHT - R1")
     
         elif leftIRrate[Platform.LEFT]!=0 and leftIRrate[Platform.RIGHT]==0 and\
             rightIRrate[Platform.LEFT]!=0 and rightIRrate[Platform.RIGHT]==0:
         
-            pl.Move(12,20) #(2)
+            pl.Move(19-int(7*reductionRatio),20) #(2)
             Log("both only LEFT - L2")
         
         #left sensor doesn't see anything but right does
@@ -181,36 +186,37 @@ def Dock(pl):
             (rightIRrate[Platform.LEFT]!=0 or rightIRrate[Platform.RIGHT]!=0):
             
             if rightIRrate[Platform.LEFT] < rightIRrate[Platform.RIGHT]:
-                pl.Move(20,12) #(3)
+                pl.Move(20,19-int(6*reductionRatio)) #(3)
                 Log("only right sees, more RIGHT - R3")
             else:
-                pl.Move(20,12) #(4)
+                pl.Move(20,19-int(6*reductionRatio)) #(4)
                 Log("only right sees, more LEFT - R4")
         #right sensor doesn't see anything but left does
         elif rightIRrate[Platform.LEFT]==0 and rightIRrate[Platform.RIGHT]==0 and\
             (leftIRrate[Platform.LEFT]!=0 or leftIRrate[Platform.RIGHT]!=0):
             
             if leftIRrate[Platform.LEFT] > leftIRrate[Platform.RIGHT]:
-                pl.Move(12,20) #(5)
+                pl.Move(19-int(6*reductionRatio),20) #(5)
                 Log("only left sees, more left - L5")
             else:
-                pl.Move(12,20) #(6)
+                pl.Move(19-int(6*reductionRatio),20) #(6)
                 Log("only left sees, more right - L6")
         elif rightIRrate[Platform.LEFT]!=0 and leftIRrate[Platform.RIGHT]!=0 :
             
                 if rightIRrate[Platform.RIGHT] > leftIRrate[Platform.LEFT]:
                     #go slightly right
-                    pl.Move(20,18) #(7)
+                    pl.Move(20,19-int(1*reductionRatio)) #(7)
                     Log("good dir - F7")
                 elif rightIRrate[Platform.RIGHT] < leftIRrate[Platform.LEFT]:
                     #go slightly left
-                    pl.Move(18,20)
+                    pl.Move(19-int(1*reductionRatio),20)
                     Log("good dir - F8")
                 else:
                     pl.Move(20,20)
                     Log("very good dir F9")
+                    goodDirection=5
                 
-                #goodDirection=8
+                
                 #Log("GOOD DIRECTION!")
 #            elif topIRrate[Platform.LEFT]>0:
 #                pl.Move(20,10)
@@ -254,8 +260,9 @@ def Dock(pl):
         pl.Move(0,0)
         #Log("(S)"+str(pl.somethingClose)+" "+str(pl.liftedUp) +" "+ str(pl.onCliff))
         
-    #sleep(0.1)
-    
+    if puls100ms and reductionRatio>0.0:#make reduction ratio lesser with time
+        reductionRatio-=0.005
+    print(reductionRatio)
     
     return not totalLostTmr.Expired()#if total lost timer expired, quit docking
 
