@@ -39,9 +39,11 @@ storedState1=None
 storedState2=None
 searchForBaseState=0
 undockState=0
+cliffState=0
 dockedCorrectlyTmr=0
 storedCleaningMotors=False#if roomba was cleaning before lifted or cliff
 permaDir=None
+
 
 testCleaning=False
 
@@ -91,13 +93,16 @@ def STATE_docked():
 def STATE_undock():
     global undockState
     
-    if undockState==0:
+    if st.First():
+        undockState = 0
+    
+    if undockState==0:#go back
         pl.Move(-50,-50,25)
         undockState=1
-    elif undockState==1 and pl.standstill:
+    elif undockState==1 and pl.standstill:#rotate to left
         pl.Rotate(Platform.LEFT,60,180)
         undockState=2
-    elif undockState==2 and pl.standstill:
+    elif undockState==2 and pl.standstill:#start cleaning motors
         pl.StartCleaningMotors()
         st.NextState(STATE_cleaning)
         
@@ -274,6 +279,7 @@ def STATE_cleaning_bump():
     #sleep(0.1)
 
 def STATE_LiftOrCliff():
+    global cliffState
     
     if st.First():
         Log("Lifted or on cliff!")
@@ -281,14 +287,28 @@ def STATE_LiftOrCliff():
         
         if pl.onCliff and not pl.liftedUp:#if just on cliff,move backwards
             pl.Move(-40,-40,50)
+            
+        cliffState = 0
     
     if pl.liftedUp:
         pl.StopCleaningMotors()
+        
+      
+    elif pl.standstill and not pl.liftedUp and cliffState==0:
+        cliffState=1
+        pl.Rotate(Platform.LEFT,60,60)
     
-    elif pl.standstill and not pl.liftedUp and not pl.onCliff:
+    elif pl.standstill and not pl.liftedUp and not pl.onCliff and cliffState==1:
         st.NextState(storedState1)
         if storedCleaningMotors:
             pl.StartCleaningMotors()
+      
+    #timeout
+    if st.getStepTime()>15:
+        Log("Timeout in LiftOrCLiff state! Turning off everything...")
+        pl.Stop()
+        pl.StopCleaningMotors()
+        st.NextState(STATE_stuck)
         
 
 def STATE_batteryVeryLow():
@@ -305,6 +325,9 @@ def STATE_motorsOverloaded():
     sleep(5)
     
 def STATE_cleaningMotorsOverloaded():
+    sleep(5)
+    
+def STATE_stuck():
     sleep(5)
     
 def STATE_manualStop():
@@ -365,6 +388,7 @@ def Cleaning():
         STATE_LiftOrCliff,
         STATE_motorsOverloaded,
         STATE_cleaningMotorsOverloaded,
+        STATE_stuck,
         STATE_manualStop
     ]
     st = StateMachine(stateList)
@@ -450,6 +474,7 @@ def Cleaning():
              
              # buttons ------------------------------------------
             if pl.btn1 and st.currState!=STATE_manualStop:
+                Log("MANUAL STOP!")
                 pl.Stop()
                 pl.StopCleaningMotors()
                 st.NextState(STATE_manualStop)
@@ -463,6 +488,11 @@ def Cleaning():
                     st.NextState(STATE_cleaning)
         
                 cleaningTmr.Start(600)#10min
+                
+            if pl.btn3 and st.currState!=STATE_searchForBase:
+                Log("GOING DO MANUALLY STARTED DOCKING!")
+                st.NextState(STATE_searchForBase)
+              
             # buttons ------------------------------------------
             
             if tmr100ms.Expired():

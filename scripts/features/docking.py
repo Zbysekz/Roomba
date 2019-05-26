@@ -262,7 +262,7 @@ def Dock(pl):
         
     if puls100ms and reductionRatio>0.0:#make reduction ratio lesser with time
         reductionRatio-=0.005
-    print(reductionRatio)
+    #print(reductionRatio)
     
     return not totalLostTmr.Expired()#if total lost timer expired, quit docking
 
