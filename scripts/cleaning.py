@@ -83,7 +83,7 @@ def STATE_docked():
     if CheckCleaningSchedule():
         Log("GOING DO SCHEDULED CLEANING!")
         st.NextState(STATE_undock)
-        cleaningTmr.Start(600)#10min
+        cleaningTmr.Start(1200)#20min
         
     if testCleaning and restCleaningTmr.Expired():
         Log("GOING DO TEST CLEANING!")
@@ -322,13 +322,22 @@ def STATE_batteryVeryLow():
             
 
 def STATE_motorsOverloaded():
-    sleep(5)
+    sleep(2)
+    if pl.isCharging:
+        Log("Manually docked to station")
+        st.NextState(STATE_docked)
     
 def STATE_cleaningMotorsOverloaded():
-    sleep(5)
+    sleep(2)
+    if pl.isCharging:
+        Log("Manually docked to station")
+        st.NextState(STATE_docked)
     
 def STATE_stuck():
-    sleep(5)
+    sleep(2)
+    if pl.isCharging:
+        Log("Manually docked to station")
+        st.NextState(STATE_docked)
     
 def STATE_manualStop():
     if pl.isCharging:
@@ -420,17 +429,24 @@ def Cleaning():
         pl.Preprocess()
         sleep(1)
     
+    Log("Arrived!")
     pl.Preprocess()
     
-    sleep(3)#wait to stabilize zero current
+    sleep(1)#wait to stabilize zero current
+    
+    for i in range(3):
+        pl.Preprocess()
+        Log("Cleaning motors current:"+str(pl.cleaningMotorsCurrent))
+        sleep(1)
+    
     if not pl.cleaningMotorsCurrentStandstill:
         Log("Current of cleaning motors is not zero! Possible fault connection!")
         Log("Current:"+str(pl.cleaningMotorsCurrent))
-        while(True):
+        for i in range(20):
             pl.Preprocess()
             Log("Current:"+str(pl.cleaningMotorsCurrent))
             sleep(1)
-            pass
+        return
     
     #------------------------- end self check------------------------
     
