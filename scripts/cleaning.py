@@ -14,11 +14,16 @@ import time
 from time import sleep
 import calendar
 from datetime import date,datetime
+import threading
 
 pl  = 0 #platform
 st  = 0 #state machine
 st2 = 0 # state machine for cleaning
 
+low = 0
+emedium = 1
+high = 2
+verbosity = high # for entire file
 
 tmr100ms = cTimer()
 puls100ms = False
@@ -84,6 +89,7 @@ def STATE_docked():
         Log("GOING DO SCHEDULED CLEANING!")
         st.NextState(STATE_undock)
         cleaningTmr.Start(1200)#20min
+        PlaySound('startup.wav')
         
     if testCleaning and restCleaningTmr.Expired():
         Log("GOING DO TEST CLEANING!")
@@ -196,14 +202,17 @@ def STATE_cleaning():
     if pl.getTopRate()[Platform.TOP]>4 and st2.currState != STATE_cleaning_baseClose:
         Log("Base is close,going out of here")
         st2.NextState(STATE_cleaning_baseClose)
+        PlaySound('buzzer_maly.wav')
     
     if pl.lowBattery:
         Log("Low battery! Going to base!")
         pl.StopCleaningMotors()
         st.NextState(STATE_searchForBase)
+        PlaySound('buzzer_x.wav')
     
     if cleaningTmr.Expired():
         Log("Time for cleaning expired!")
+        PlaySound('drum_roll.wav')
         #pl.StopCleaningMotors()
         st.NextState(STATE_searchForBase)
     
@@ -284,6 +293,7 @@ def STATE_LiftOrCliff():
     if st.First():
         Log("Lifted or on cliff!")
         Log("SensorData:"+str(pl.sensorData[1]))
+        Log(str(pl.sensorData[3])+";"+str(pl.sensorData[4]))
         
         if pl.onCliff and not pl.liftedUp:#if just on cliff,move backwards
             pl.Move(-40,-40,50)
@@ -349,6 +359,9 @@ def CheckLiftAndCliff(): # check if you are lifted or on the cliff
     
     if pl.liftedUp or pl.onCliff:
         Log("Lifted up or on Clif!!")
+        Log("SensorData:"+str(pl.sensorData[1]))
+        Log(str(pl.sensorData[3])+";"+str(pl.sensorData[4]))
+        
         pl.Stop()
         storedCleaningMotors = pl.getCleaningMotorsState()
         if pl.liftedUp:#stop cleaning only if lifted up
@@ -360,25 +373,30 @@ def SendDataToServer():
     import socket
 
     host = "192.168.0.3"  
-    port =  23     
-
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-     
-    sock.connect((host, port))
-
-    data = [7,102,int(pl.batVoltages[0]*1000/256),int(pl.batVoltages[0]*1000%256),\
-            int(pl.batVoltages[1]*1000/256),int(pl.batVoltages[1]*1000%256),\
-            int(pl.batVoltages[2]*1000/256),int(pl.batVoltages[2]*1000%256)]
-    crc=0
-    for d in data:
-        crc+=d
-    sent = sock.send(bytes([111,222]+data+[int(crc/256),crc%256,222]))
+    port =  23
     
-    Log(data)
-    Log(bytes([111,222]+data+[int(crc/256),crc%256,222]))
-    Log("DATA SENT TO SERVER!!!")
+    try:
 
-    sock.close()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+         
+        sock.connect((host, port))
+
+        data = [7,102,int(pl.batVoltages[0]*1000/256),int(pl.batVoltages[0]*1000%256),\
+                int(pl.batVoltages[1]*1000/256),int(pl.batVoltages[1]*1000%256),\
+                int(pl.batVoltages[2]*1000/256),int(pl.batVoltages[2]*1000%256)]
+        crc=0
+        for d in data:
+            crc+=d
+        sent = sock.send(bytes([111,222]+data+[int(crc/256),crc%256,222]))
+        
+        Log(data)
+        Log(bytes([111,222]+data+[int(crc/256),crc%256,222]))
+        Log("Data was sent to the server.", medium)
+
+        sock.close()
+    except Exception as inst:
+        Log("Error during sending data to server!")
+        Log(inst)
 
 #----------------------------------------------------------------------------
 def Cleaning():
@@ -494,6 +512,7 @@ def Cleaning():
                 pl.Stop()
                 pl.StopCleaningMotors()
                 st.NextState(STATE_manualStop)
+                PlaySound('BLEEP0.wav')
             
             if pl.btn2 and st.currState!=STATE_undock:
                 Log("GOING DO MANUALLY STARTED CLEANING!")
@@ -503,11 +522,13 @@ def Cleaning():
                     pl.StartCleaningMotors()
                     st.NextState(STATE_cleaning)
         
-                cleaningTmr.Start(600)#10min
+                cleaningTmr.Start(1200)#20min
+                PlaySound('BLEEP0.wav')
                 
             if pl.btn3 and st.currState!=STATE_searchForBase:
                 Log("GOING DO MANUALLY STARTED DOCKING!")
                 st.NextState(STATE_searchForBase)
+                PlaySound('BLEEP0.wav')
               
             # buttons ------------------------------------------
             
@@ -526,7 +547,7 @@ def Cleaning():
             if serverDataTmr.Expired():
                 serverDataTmr.Start(600)
                 SendDataToServer()
-                pl.PrintErrorCnt()
+                #pl.PrintErrorCnt()
                 
         except KeyboardInterrupt:
             pl.Stop()
@@ -565,9 +586,20 @@ def CheckCleaningSchedule():
             return True
     return False
 
-def Log(s):
-    print("LOGGED:"+str(s))
+def PlaySound(filename):
+    Log("Playing sound:"+filename)
+    threading.Thread(target=PlaySound_thread, args=('sounds/'+filename,)).start()
+    
+def PlaySound_thread(filename):
+    os.system('aplay '+filename)
+    
 
+def Log(s,_verbosity=low):
+    
+    if _verbosity > verbosity:
+        return
+    print(str(s))
+    
     dateStr=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
     with open("logs/cleaning.log","a") as file:
