@@ -21,7 +21,7 @@ st  = 0 #state machine
 st2 = 0 # state machine for cleaning
 
 low = 0
-emedium = 1
+medium = 1
 high = 2
 verbosity = high # for entire file
 
@@ -48,9 +48,10 @@ cliffState=0
 dockedCorrectlyTmr=0
 storedCleaningMotors=False#if roomba was cleaning before lifted or cliff
 permaDir=None
-
+tmrChange = time.time()
 
 testCleaning=False
+bumpDirection= Platform.LEFT
 
 
 def STATE_idle():
@@ -166,7 +167,7 @@ def STATE_docking():
     
     
 def STATE_cleaning():
-    global storedState2
+    global storedState2,tmrChange
     
     CheckLiftAndCliff()
 
@@ -183,20 +184,26 @@ def STATE_cleaning():
         storedState2=st2.currState
         st2.NextState(STATE_cleaning_bump)
         
-    if st2.currState == STATE_cleaning_spiral:
-        if st2.getAcumulatedTime() > 30:
-            st2.ResetAcumulatedTime()
-            st2.NextState(STATE_cleaning_wallFollowing)
+    #doing spiral till hit some obstacle, then bouncing
             
     elif st2.currState == STATE_cleaning_wallFollowing:
-        if st2.getAcumulatedTime() > 30:
+        if st2.getAcumulatedTime() > 120:
             st2.ResetAcumulatedTime()
             st2.NextState(STATE_cleaning_bouncing)
             
     elif st2.currState == STATE_cleaning_bouncing:#if you are bouncing and some time elapsed and you traveled some distance without bump, go spiral
-        if st2.getAcumulatedTime() > 30 and pl.straightDistanceTraveled>100:
-            st2.ResetAcumulatedTime()
-            st2.NextState(STATE_cleaning_spiral)
+        if st2.getAcumulatedTime() > 120:#doing this at least 2 mins
+            #st2.ResetAcumulatedTime()
+
+            if time.time() - tmrChange > 10.0: # each 10sec
+                tmrChange = time.time()
+                Log("CHECK CHANGE!")
+                if pl.straightDistanceTraveled>200 and random.randint(0,100) < 30: #30% chance, 100 = cca 1-2m
+                    st2.NextState(STATE_cleaning_spiral)
+                    st2.ResetAcumulatedTime()
+                elif random.randint(0,100) < 30:#30% chance
+                    st2.NextState(STATE_cleaning_wallFollowing)
+                    st2.ResetAcumulatedTime()
             
     #avoid going too close to base
     if pl.getTopRate()[Platform.TOP]>4 and st2.currState != STATE_cleaning_baseClose:
@@ -253,7 +260,7 @@ def STATE_cleaning_bouncing():
     #sleep(0.1)
 
 def STATE_cleaning_bump():
-    global bumpState
+    global bumpState, bumpDirection
     
     if st2.First():
         bumpState=0
@@ -261,12 +268,37 @@ def STATE_cleaning_bump():
     if pl.standstill and bumpState==0:#after bump go back
         pl.Move(-100,-100,5)
         bumpState=1
-        
+
+        print("CHANCE"+str(pl.straightDistanceBeforeBump)+str(pl.leftBumper)+str(pl.rightBumper))
+        if pl.straightDistanceBeforeBump > 200 and random.randint(0,100) < 50:  # you traveled far so there is a chance to change direction and 50% chance
+            if pl.leftBumper and pl.rightBumper:
+                if(random.randint(0,100) < 50):# 50:50
+                    bumpDirection = pl.RIGHT
+                else:
+                    bumpDirection = pl.LEFT
+            elif pl.leftBumper:
+                bumpDirection = pl.RIGHT
+            else:
+                bumpDirection = pl.LEFT
+
     if pl.standstill and bumpState==1:#finished move back,rotate
         if pl.bumper:
             bumpState=0
         else:
-            pl.Rotate(pl.LEFT,50,20)
+
+            sideSensors = pl.sensorData[0]
+            sum = 0
+            for s in sideSensors:
+                sum+=s # each sensor is from 0.0 to 1.0
+
+            sum = sum / 6 # six sensors, so normalize to 0.0-1.0
+
+            #print("SUM:"+str(sum))
+
+            bonus = min(max((int)(sum * 200) - 30, 140),0)# need some scaling because 0 and 1 are extreme values
+
+
+            pl.RotateRandomAngle(direction=bumpDirection, speed=50, angleMin=20 + bonus, angleMax=50 + bonus)
             bumpState=2
         
     if bumpState==2 and pl.standstill:#finished rotation, go front
@@ -587,7 +619,7 @@ def CheckCleaningSchedule():
     return False
 
 def PlaySound(filename):
-    Log("Playing sound:"+filename)
+    #Log("Playing sound:"+filename)
     threading.Thread(target=PlaySound_thread, args=('sounds/'+filename,)).start()
     
 def PlaySound_thread(filename):
