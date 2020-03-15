@@ -2,3 +2,4 @@
 MotherBoard/Debug/*
 *.pyc
 */logs/*
+*.log
