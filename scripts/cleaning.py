@@ -16,6 +16,9 @@ import calendar
 from datetime import date,datetime
 import threading
 
+MANUAL_CLEANING_DURATION = 1800 #30min
+SCHEDULED_CLEANING_DURATION = 1800 # 30min
+
 pl  = 0 #platform
 st  = 0 #state machine
 st2 = 0 # state machine for cleaning
@@ -23,7 +26,7 @@ st2 = 0 # state machine for cleaning
 low = 0
 medium = 1
 high = 2
-verbosity = high # for entire file
+verbosity = low # for entire file
 
 tmr100ms = cTimer()
 puls100ms = False
@@ -66,7 +69,7 @@ def STATE_idle():
             Log("GOING DO TEST CLEANING!")
             pl.StartCleaningMotors()
             st.NextState(STATE_cleaning)
-            cleaningTmr.Start(600)#10min
+            cleaningTmr.Start(60)#10min
         elif pl.liftedUp or pl.onCliff:
             Log("Lifted! Waiting..")
             st.NextState(STATE_manualStop)#somebody lifted me(probably from dock), wait
@@ -89,7 +92,7 @@ def STATE_docked():
     if CheckCleaningSchedule():
         Log("GOING DO SCHEDULED CLEANING!")
         st.NextState(STATE_undock)
-        cleaningTmr.Start(1200)#20min
+        cleaningTmr.Start(SCHEDULED_CLEANING_DURATION)
         PlaySound('startup.wav')
         
     if testCleaning and restCleaningTmr.Expired():
@@ -122,7 +125,8 @@ def STATE_searchForBase():
     if st.First():
         permaDir = Platform.LEFT if bool(random.randint(0,1))else Platform.RIGHT
     
-    CheckLiftAndCliff()
+    if CheckLiftAndCliff():
+        return
     
     if searchForBaseState==0:
         speed = pl.getDynamicSpeed(30,70)
@@ -150,7 +154,8 @@ def STATE_searchForBase():
 def STATE_docking():
     global dockedCorrectlyTmr
     
-    #CheckLiftAndCliff()
+    #if CheckLiftAndCliff():
+    #return
     dockingFail = Dock(pl)
     
     if pl.isCharging and puls100ms:
@@ -169,7 +174,8 @@ def STATE_docking():
 def STATE_cleaning():
     global storedState2,tmrChange
     
-    CheckLiftAndCliff()
+    if CheckLiftAndCliff():
+        return
 
     #spiral at the start until you hit obstacle
     #then do wall following until time expires
@@ -326,7 +332,8 @@ def STATE_LiftOrCliff():
         Log("Lifted or on cliff!")
         Log("SensorData:"+str(pl.sensorData[1]))
         Log(str(pl.sensorData[3])+";"+str(pl.sensorData[4]))
-        
+        Log(str(pl.liftedUp) + ";" + str(pl.onCliff))
+
         if pl.onCliff and not pl.liftedUp:#if just on cliff,move backwards
             pl.Move(-40,-40,50)
             
@@ -393,6 +400,7 @@ def CheckLiftAndCliff(): # check if you are lifted or on the cliff
         Log("Lifted up or on Clif!!")
         Log("SensorData:"+str(pl.sensorData[1]))
         Log(str(pl.sensorData[3])+";"+str(pl.sensorData[4]))
+        Log(str(pl.liftedUp) + ";" + str(pl.onCliff))
         
         pl.Stop()
         storedCleaningMotors = pl.getCleaningMotorsState()
@@ -400,6 +408,9 @@ def CheckLiftAndCliff(): # check if you are lifted or on the cliff
             pl.StopCleaningMotors()
         storedState1 = st.currState
         st.NextState(STATE_LiftOrCliff)
+
+        return True
+    return False
 
 def SendDataToServer():
     import socket
@@ -420,10 +431,8 @@ def SendDataToServer():
         for d in data:
             crc+=d
         sent = sock.send(bytes([111,222]+data+[int(crc/256),crc%256,222]))
-        
-        Log(data)
-        Log(bytes([111,222]+data+[int(crc/256),crc%256,222]))
-        Log("Data was sent to the server.", medium)
+
+        Log("Data was sent to the server.", high)
 
         sock.close()
     except Exception as inst:
@@ -554,7 +563,7 @@ def Cleaning():
                     pl.StartCleaningMotors()
                     st.NextState(STATE_cleaning)
         
-                cleaningTmr.Start(1200)#20min
+                cleaningTmr.Start(MANUAL_CLEANING_DURATION)
                 PlaySound('BLEEP0.wav')
                 
             if pl.btn3 and st.currState!=STATE_searchForBase:
