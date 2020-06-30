@@ -16,14 +16,17 @@ import calendar
 from datetime import date,datetime
 import threading
 
+MANUAL_CLEANING_DURATION = 1800 #30min
+SCHEDULED_CLEANING_DURATION = 1800 # 30min
+
 pl  = 0 #platform
 st  = 0 #state machine
 st2 = 0 # state machine for cleaning
 
 low = 0
-emedium = 1
+medium = 1
 high = 2
-verbosity = high # for entire file
+verbosity = low # for entire file
 
 tmr100ms = cTimer()
 puls100ms = False
@@ -48,9 +51,10 @@ cliffState=0
 dockedCorrectlyTmr=0
 storedCleaningMotors=False#if roomba was cleaning before lifted or cliff
 permaDir=None
-
+tmrChange = time.time()
 
 testCleaning=False
+bumpDirection= Platform.LEFT
 
 
 def STATE_idle():
@@ -65,7 +69,7 @@ def STATE_idle():
             Log("GOING DO TEST CLEANING!")
             pl.StartCleaningMotors()
             st.NextState(STATE_cleaning)
-            cleaningTmr.Start(600)#10min
+            cleaningTmr.Start(60)#10min
         elif pl.liftedUp or pl.onCliff:
             Log("Lifted! Waiting..")
             st.NextState(STATE_manualStop)#somebody lifted me(probably from dock), wait
@@ -88,7 +92,7 @@ def STATE_docked():
     if CheckCleaningSchedule():
         Log("GOING DO SCHEDULED CLEANING!")
         st.NextState(STATE_undock)
-        cleaningTmr.Start(1200)#20min
+        cleaningTmr.Start(SCHEDULED_CLEANING_DURATION)
         PlaySound('startup.wav')
         
     if testCleaning and restCleaningTmr.Expired():
@@ -121,7 +125,8 @@ def STATE_searchForBase():
     if st.First():
         permaDir = Platform.LEFT if bool(random.randint(0,1))else Platform.RIGHT
     
-    CheckLiftAndCliff()
+    if CheckLiftAndCliff():
+        return
     
     if searchForBaseState==0:
         speed = pl.getDynamicSpeed(30,70)
@@ -149,7 +154,8 @@ def STATE_searchForBase():
 def STATE_docking():
     global dockedCorrectlyTmr
     
-    #CheckLiftAndCliff()
+    #if CheckLiftAndCliff():
+    #return
     dockingFail = Dock(pl)
     
     if pl.isCharging and puls100ms:
@@ -166,9 +172,10 @@ def STATE_docking():
     
     
 def STATE_cleaning():
-    global storedState2
+    global storedState2,tmrChange
     
-    CheckLiftAndCliff()
+    if CheckLiftAndCliff():
+        return
 
     #spiral at the start until you hit obstacle
     #then do wall following until time expires
@@ -183,20 +190,26 @@ def STATE_cleaning():
         storedState2=st2.currState
         st2.NextState(STATE_cleaning_bump)
         
-    if st2.currState == STATE_cleaning_spiral:
-        if st2.getAcumulatedTime() > 30:
-            st2.ResetAcumulatedTime()
-            st2.NextState(STATE_cleaning_wallFollowing)
+    #doing spiral till hit some obstacle, then bouncing
             
     elif st2.currState == STATE_cleaning_wallFollowing:
-        if st2.getAcumulatedTime() > 30:
+        if st2.getAcumulatedTime() > 120:
             st2.ResetAcumulatedTime()
             st2.NextState(STATE_cleaning_bouncing)
             
     elif st2.currState == STATE_cleaning_bouncing:#if you are bouncing and some time elapsed and you traveled some distance without bump, go spiral
-        if st2.getAcumulatedTime() > 30 and pl.straightDistanceTraveled>100:
-            st2.ResetAcumulatedTime()
-            st2.NextState(STATE_cleaning_spiral)
+        if st2.getAcumulatedTime() > 120:#doing this at least 2 mins
+            #st2.ResetAcumulatedTime()
+
+            if time.time() - tmrChange > 10.0: # each 10sec
+                tmrChange = time.time()
+                Log("CHECK CHANGE!")
+                if pl.straightDistanceTraveled>200 and random.randint(0,100) < 30: #30% chance, 100 = cca 1-2m
+                    st2.NextState(STATE_cleaning_spiral)
+                    st2.ResetAcumulatedTime()
+                elif random.randint(0,100) < 30:#30% chance
+                    st2.NextState(STATE_cleaning_wallFollowing)
+                    st2.ResetAcumulatedTime()
             
     #avoid going too close to base
     if pl.getTopRate()[Platform.TOP]>4 and st2.currState != STATE_cleaning_baseClose:
@@ -253,7 +266,7 @@ def STATE_cleaning_bouncing():
     #sleep(0.1)
 
 def STATE_cleaning_bump():
-    global bumpState
+    global bumpState, bumpDirection
     
     if st2.First():
         bumpState=0
@@ -261,12 +274,37 @@ def STATE_cleaning_bump():
     if pl.standstill and bumpState==0:#after bump go back
         pl.Move(-100,-100,5)
         bumpState=1
-        
+
+        print("CHANCE"+str(pl.straightDistanceBeforeBump)+str(pl.leftBumper)+str(pl.rightBumper))
+        if pl.straightDistanceBeforeBump > 200 and random.randint(0,100) < 50:  # you traveled far so there is a chance to change direction and 50% chance
+            if pl.leftBumper and pl.rightBumper:
+                if(random.randint(0,100) < 50):# 50:50
+                    bumpDirection = pl.RIGHT
+                else:
+                    bumpDirection = pl.LEFT
+            elif pl.leftBumper:
+                bumpDirection = pl.RIGHT
+            else:
+                bumpDirection = pl.LEFT
+
     if pl.standstill and bumpState==1:#finished move back,rotate
         if pl.bumper:
             bumpState=0
         else:
-            pl.Rotate(pl.LEFT,50,20)
+
+            sideSensors = pl.sensorData[0]
+            sum = 0
+            for s in sideSensors:
+                sum+=s # each sensor is from 0.0 to 1.0
+
+            sum = sum / 6 # six sensors, so normalize to 0.0-1.0
+
+            #print("SUM:"+str(sum))
+
+            bonus = min(max((int)(sum * 200) - 30, 140),0)# need some scaling because 0 and 1 are extreme values
+
+
+            pl.RotateRandomAngle(direction=bumpDirection, speed=50, angleMin=20 + bonus, angleMax=50 + bonus)
             bumpState=2
         
     if bumpState==2 and pl.standstill:#finished rotation, go front
@@ -294,7 +332,8 @@ def STATE_LiftOrCliff():
         Log("Lifted or on cliff!")
         Log("SensorData:"+str(pl.sensorData[1]))
         Log(str(pl.sensorData[3])+";"+str(pl.sensorData[4]))
-        
+        Log(str(pl.liftedUp) + ";" + str(pl.onCliff))
+
         if pl.onCliff and not pl.liftedUp:#if just on cliff,move backwards
             pl.Move(-40,-40,50)
             
@@ -361,6 +400,7 @@ def CheckLiftAndCliff(): # check if you are lifted or on the cliff
         Log("Lifted up or on Clif!!")
         Log("SensorData:"+str(pl.sensorData[1]))
         Log(str(pl.sensorData[3])+";"+str(pl.sensorData[4]))
+        Log(str(pl.liftedUp) + ";" + str(pl.onCliff))
         
         pl.Stop()
         storedCleaningMotors = pl.getCleaningMotorsState()
@@ -368,6 +408,9 @@ def CheckLiftAndCliff(): # check if you are lifted or on the cliff
             pl.StopCleaningMotors()
         storedState1 = st.currState
         st.NextState(STATE_LiftOrCliff)
+
+        return True
+    return False
 
 def SendDataToServer():
     import socket
@@ -388,10 +431,8 @@ def SendDataToServer():
         for d in data:
             crc+=d
         sent = sock.send(bytes([111,222]+data+[int(crc/256),crc%256,222]))
-        
-        Log(data)
-        Log(bytes([111,222]+data+[int(crc/256),crc%256,222]))
-        Log("Data was sent to the server.", medium)
+
+        Log("Data was sent to the server.", high)
 
         sock.close()
     except Exception as inst:
@@ -522,7 +563,7 @@ def Cleaning():
                     pl.StartCleaningMotors()
                     st.NextState(STATE_cleaning)
         
-                cleaningTmr.Start(1200)#20min
+                cleaningTmr.Start(MANUAL_CLEANING_DURATION)
                 PlaySound('BLEEP0.wav')
                 
             if pl.btn3 and st.currState!=STATE_searchForBase:
@@ -587,7 +628,7 @@ def CheckCleaningSchedule():
     return False
 
 def PlaySound(filename):
-    Log("Playing sound:"+filename)
+    #Log("Playing sound:"+filename)
     threading.Thread(target=PlaySound_thread, args=('sounds/'+filename,)).start()
     
 def PlaySound_thread(filename):

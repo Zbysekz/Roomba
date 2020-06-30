@@ -90,101 +90,116 @@ def getCode(pin):
     return ERROR
 
 def ReadL(lock,tmrTimeout,leftRateTmp):
-    while(not endThreads and tmrTimeout.value!=0):
-        
-        code = getCode(PIN_L);
-        #if code != ERROR:
-        #Log("L:0x%02x"%code)
-        lock.acquire()
-        tmrTimeout.value-=1
-        
-        if((code & LEFT_BEAM)==LEFT_BEAM):
-            leftRateTmp[0]+=1
-        if((code & RIGHT_BEAM)==RIGHT_BEAM):
-            leftRateTmp[1]+=1
-        if((code & FORCE_FIELD)==FORCE_FIELD):
-            leftRateTmp[2]+=1
-            
-        lock.release()
+    try:
+        while(not endThreads and tmrTimeout.value!=0):
+
+            code = getCode(PIN_L);
+            #if code != ERROR:
+            #Log("L:0x%02x"%code)
+            lock.acquire()
+            tmrTimeout.value-=1
+
+            if((code & LEFT_BEAM)==LEFT_BEAM):
+                leftRateTmp[0]+=1
+            if((code & RIGHT_BEAM)==RIGHT_BEAM):
+                leftRateTmp[1]+=1
+            if((code & FORCE_FIELD)==FORCE_FIELD):
+                leftRateTmp[2]+=1
+
+            lock.release()
+    except KeyboardInterrupt:
+        Log("------------IRM Read L - Keyboard interrupt!---------------")
+
     Log("tL process terminated")
         
 def ReadR(lock,tmrTimeout,rightRateTmp):
-    while(not endThreads and tmrTimeout.value!=0):
-        
-        code = getCode(PIN_R);
-        #if code != ERROR:
-        #Log("R:0x%02x"%code)
-        lock.acquire()
-        tmrTimeout.value-=1
-        
-        if((code & LEFT_BEAM)==LEFT_BEAM):
-            rightRateTmp[0]+=1
-        if((code & RIGHT_BEAM)==RIGHT_BEAM):
-            rightRateTmp[1]+=1
-        if((code & FORCE_FIELD)==FORCE_FIELD):
-            rightRateTmp[2]+=1
-            
-        lock.release()
+    try:
+        while(not endThreads and tmrTimeout.value!=0):
+
+            code = getCode(PIN_R);
+            #if code != ERROR:
+            #Log("R:0x%02x"%code)
+            lock.acquire()
+            tmrTimeout.value-=1
+
+            if((code & LEFT_BEAM)==LEFT_BEAM):
+                rightRateTmp[0]+=1
+            if((code & RIGHT_BEAM)==RIGHT_BEAM):
+                rightRateTmp[1]+=1
+            if((code & FORCE_FIELD)==FORCE_FIELD):
+                rightRateTmp[2]+=1
+
+            lock.release()
+    except KeyboardInterrupt:
+        Log("------------IRM Read R - Keyboard interrupt!---------------")
+
     Log("tR process terminated")
         
 def ReadT(lock,tmrTimeout,topRateTmp):
-    while(not endThreads and tmrTimeout.value!=0):
-        
-        code = getCode(PIN_T);
-        #if code != ERROR:
-        #Log("T:0x%02x"%code)
-        lock.acquire()
-        tmrTimeout.value-=1
-        
-        if((code & LEFT_BEAM)==LEFT_BEAM):
-            topRateTmp[0]+=1
-        if((code & RIGHT_BEAM)==RIGHT_BEAM):
-            topRateTmp[1]+=1
-        if((code & FORCE_FIELD)==FORCE_FIELD):
-            topRateTmp[2]+=1
-        
-        lock.release()
+    try:
+        while(not endThreads and tmrTimeout.value!=0):
+
+            code = getCode(PIN_T);
+            #if code != ERROR:
+            #Log("T:0x%02x"%code)
+            lock.acquire()
+            tmrTimeout.value-=1
+
+            if((code & LEFT_BEAM)==LEFT_BEAM):
+                topRateTmp[0]+=1
+            if((code & RIGHT_BEAM)==RIGHT_BEAM):
+                topRateTmp[1]+=1
+            if((code & FORCE_FIELD)==FORCE_FIELD):
+                topRateTmp[2]+=1
+
+            lock.release()
+    except KeyboardInterrupt:
+        Log("------------IRM Read T - Keyboard interrupt!---------------")
+
     Log("tT process terminated")
 
 def RateSampler(lock,tmrTimeout,leftRate,rightRate,topRate,leftRateTmp,rightRateTmp,topRateTmp,prInfo):
-    
-    while(not endThreads and tmrTimeout.value!=0):
-        
-        lock.acquire()
-        tmrTimeout.value-=1
-        
-        leftRate[0]=leftRateTmp[0]
-        leftRate[1]=leftRateTmp[1]
-        leftRate[2]=leftRateTmp[2]
-        
-        rightRate[0]=rightRateTmp[0]
-        rightRate[1]=rightRateTmp[1]
-        rightRate[2]=rightRateTmp[2]
-        
-        topRate[0]=topRateTmp[0]
-        topRate[1]=topRateTmp[1]
-        topRate[2]=topRateTmp[2]
-                
-        leftRateTmp[0]=0
-        leftRateTmp[1]=0
-        leftRateTmp[2]=0
-        rightRateTmp[0]=0
-        rightRateTmp[1]=0
-        rightRateTmp[2]=0
-        topRateTmp[0]=0
-        topRateTmp[1]=0
-        topRateTmp[2]=0
+    try:
+        while(not endThreads and tmrTimeout.value!=0):
 
-        
-        lock.release()
-        
-        
-        if prInfo:
-            Log("L:"+str(leftRate[0])+","+str(leftRate[1])+","+str(leftRate[2]))
-            Log("R:"+str(rightRate[0])+","+str(rightRate[1])+","+str(rightRate[2]))
-            Log("T:"+str(topRate[0])+","+str(topRate[1])+","+str(topRate[2]))
+            lock.acquire()
+            tmrTimeout.value-=1
 
-        time.sleep(0.5)
+            leftRate[0]=leftRateTmp[0]
+            leftRate[1]=leftRateTmp[1]
+            leftRate[2]=leftRateTmp[2]
+
+            rightRate[0]=rightRateTmp[0]
+            rightRate[1]=rightRateTmp[1]
+            rightRate[2]=rightRateTmp[2]
+
+            topRate[0]=topRateTmp[0]
+            topRate[1]=topRateTmp[1]
+            topRate[2]=topRateTmp[2]
+
+            leftRateTmp[0]=0
+            leftRateTmp[1]=0
+            leftRateTmp[2]=0
+            rightRateTmp[0]=0
+            rightRateTmp[1]=0
+            rightRateTmp[2]=0
+            topRateTmp[0]=0
+            topRateTmp[1]=0
+            topRateTmp[2]=0
+
+
+            lock.release()
+
+
+            if prInfo:
+                Log("L:"+str(leftRate[0])+","+str(leftRate[1])+","+str(leftRate[2]))
+                Log("R:"+str(rightRate[0])+","+str(rightRate[1])+","+str(rightRate[2]))
+                Log("T:"+str(topRate[0])+","+str(topRate[1])+","+str(topRate[2]))
+
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        Log("------------IRM Rate sampler - Keyboard interrupt!---------------")
+
     Log("tS process terminated")
 
 def getLeftRate():

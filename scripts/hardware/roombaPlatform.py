@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 import sys
 import os
+import time
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(sys.argv[0]))))
 
 import hardware.comm as comm
@@ -53,6 +55,15 @@ class Platform:
         self.btn1=False
         self.btn2=False
         self.btn3=False
+
+        self.bumper = False
+        self.leftBumper = False
+        self.rightBumper = False
+        self.straightDistanceBeforeBump = 0
+        self.bumperCounter=0
+        self.__bumper_last = False
+
+        self.__tmrDistanceCounter = time.time()
         
         self.StopCleaningMotors()
         
@@ -101,8 +112,15 @@ class Platform:
         self.cleaningMotorsCurrentStandstill = True if abs(self.cleaningMotorsCurrent)<10 else False
         
         self.isCharging = self.bmsData[0]=='charging'
-        
-        self.bumper = self.sensorData[6]==0 or self.sensorData[7]==0
+
+        self.leftBumper = self.sensorData[6]==0
+        self.rightBumper = self.sensorData[7]==0
+        self.bumper =  self.leftBumper or self.rightBumper
+
+
+        if(self.bumper and not self.__bumper_last):
+            self.bumperCounter +=1
+        self.__bumper_last = self.bumper
         
         self.standstill = self.sensorData[8]!=0 and self.standstillAux==0
         
@@ -111,10 +129,17 @@ class Platform:
             
         self.speedL = self.sensorData[9]
         self.speedR = self.sensorData[10]
-        
-        self.straightDistanceTraveled+=self.speedL + self.speedR#integrate speed
+
+        # distance counter ----------------------------
+        if time.time() - self.__tmrDistanceCounter > 1.0:
+            self.straightDistanceTraveled += self.speedL + self.speedR  # integrate speed
+
+            self.__tmrDistanceCounter = time.time()
         if self.bumper:
+            if self.straightDistanceTraveled!=0:
+                self.straightDistanceBeforeBump = self.straightDistanceTraveled
             self.straightDistanceTraveled=0
+        # ---------------------------------------------
         
         lastCmds = comm.getLastMotorCmds()
         

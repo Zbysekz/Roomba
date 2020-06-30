@@ -10,7 +10,7 @@ import time
 afterBump = False
 
 def WallFollowing(pl):
-    global afterBump,tmrBump
+    global afterBump
 
 
     if pl.isCharging or pl.liftedUp or pl.onCliff or not pl.validData:#not pl.somethingClose and  
@@ -19,46 +19,69 @@ def WallFollowing(pl):
     elif afterBump>0:
         Log("afterBump:"+str(afterBump))
 
+             
         if afterBump==1 and pl.standstill:
-            afterBump=0
+            pl.Move(-40,40,distance=15)
+            afterBump=2
         elif afterBump==2 and pl.standstill:
-            pl.Move(-30,30,distance=10)
+            pl.Move(30,30,distance=30)
             afterBump=10
         elif afterBump==10 and pl.standstill:
             afterBump=0
         
     elif pl.bumper:
         if pl.sensorData[7]==0:#if we hit by right bumper
-            afterBump=1
-            pl.Move(-30,-10,distance=10)
-        if pl.sensorData[6]==0:# if we hit by left bumper
             afterBump=2
-            pl.Move(-20,-20,distance=10)
-        
+            pl.Move(-40,-20,distance=10)
+            print("RIGHT BUMP")
+        if pl.sensorData[6]==0:# if we hit by left bumper
+            afterBump=1
+            pl.Move(-60,-10,distance=10)
+            print("LEFT BUMP")
     else:          
         
         sideSensors = pl.sensorData[0]
 
-        steer = 0
-
-        steer += sideSensors[2] if sideSensors[2]>0.3 else 0
-        steer += sideSensors[3] if sideSensors[3]>0.3 else 0
+        steer = 0 # going straight
         
-        steer += sideSensors[4] if sideSensors[4]>0.1 else 0
-        steer += sideSensors[5] - 0.7
+        
+        
+        if ( sideSensors[4]<0.3 and sideSensors[5]<0.3):
+            steer = -1# slight right
+            
+        if ( sideSensors[4]<0.15 and sideSensors[5]<0.15):
+            steer = -2#hard right
+        
+        if ( sideSensors[1]>0.15 or sideSensors[2]>0.15 or sideSensors[3]>0.15 or sideSensors[4]>0.3):
+            steer = 1 # slightly left
+            
+        if ( sideSensors[1]>0.6 or sideSensors[2]>0.4 or sideSensors[3]>0.4 or sideSensors[4]>0.6):
+            steer = 2 # hard left
+                
 
         #limit steering value
         maxSteerL=0.8
         maxSteerR=0.8
-        if steer>maxSteerL:
-            steer=maxSteerL
-        elif steer<-maxSteerR:
-            steer=-maxSteerR
+#        if steer>maxSteerL:
+#            steer=maxSteerL
+#        elif steer<-maxSteerR:
+#            steer=-maxSteerR
             
         Log(sideSensors)
         Log("steer:"+str(steer))
+        
+        if steer == 0:
+            pl.Move(17,17,ramp=200)
+        elif steer == 1:
+            pl.Move(13,18,ramp=200)
+        elif steer == 2:
+            pl.Move(-10,25,ramp=200)
+        elif steer == -1:
+            pl.Move(18,13,ramp=200)
+        elif steer == -2:
+            pl.Move(25,-10,ramp=200)
 
-        pl.Move(40-int((steer)*50),45+int((steer)*50),ramp=200)   #more steer means more to the LEFT
+        #pl.Move(10-int((steer)*20),15+int((steer)*20),ramp=200)   #more steer means more to the LEFT
         
         
     sleep(0.1)
