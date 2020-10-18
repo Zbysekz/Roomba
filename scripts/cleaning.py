@@ -213,6 +213,7 @@ def STATE_cleaning():
             
     #avoid going too close to base
     if pl.getTopRate()[Platform.TOP]>4 and st2.currState != STATE_cleaning_baseClose:
+        print(pl.getTopRate()[Platform.TOP])
         Log("Base is close,going out of here")
         st2.NextState(STATE_cleaning_baseClose)
         PlaySound('buzzer_maly.wav')
@@ -427,9 +428,8 @@ def SendDataToServer():
         data = [7,102,int(pl.batVoltages[0]*1000/256),int(pl.batVoltages[0]*1000%256),\
                 int(pl.batVoltages[1]*1000/256),int(pl.batVoltages[1]*1000%256),\
                 int(pl.batVoltages[2]*1000/256),int(pl.batVoltages[2]*1000%256)]
-        crc=0
-        for d in data:
-            crc+=d
+        
+        crc = CRC16(data)
         sent = sock.send(bytes([111,222]+data+[int(crc/256),crc%256,222]))
 
         Log("Data was sent to the server.", high)
@@ -438,6 +438,22 @@ def SendDataToServer():
     except Exception as inst:
         Log("Error during sending data to server!")
         Log(inst)
+
+# Corresponds to CRC-16/XMODEM on https://crccalc.com/
+def CRC16(data):
+    crc = 0
+    generator = 0x1021
+    
+    for byte in data:
+        crc ^= byte << 8
+        for i in range(8):
+
+            if crc & 0x8000 != 0:
+                crc = (crc << 1) ^ generator
+                crc &= 0xFFFF # ensure 16 bit width
+            else:
+                crc <<= 1 # shift left
+    return crc
 
 #----------------------------------------------------------------------------
 def Cleaning():

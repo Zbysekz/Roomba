@@ -1,7 +1,4 @@
-Monday,15:00
-Tuesday,15:00
-Wednesday,15:00
-Thursday,15:00
-Friday,15:00
-Saturday,15:00
-Sunday,15:00
+Monday,15:30
+Wednesday,15:30
+Friday,15:30
+Sunday,15:30
