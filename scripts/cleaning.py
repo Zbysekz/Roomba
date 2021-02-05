@@ -73,9 +73,6 @@ def STATE_idle():
         elif pl.liftedUp or pl.onCliff:
             Log("Lifted! Waiting..")
             st.NextState(STATE_manualStop)#somebody lifted me(probably from dock), wait
-        else:        
-            Log("Started outside docking station, going to dock!")
-            st.NextState(STATE_searchForBase)
         
 def STATE_docked():
 
