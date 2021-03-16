@@ -42,6 +42,7 @@ restCleaningTmr = cTimer()
 
 #------------- auxilliary vars ---------------------
 leftSpiral = False
+spiralValue = 0
 bumpState = 0
 storedState1=None
 storedState2=None
@@ -185,10 +186,11 @@ def STATE_cleaning():
     
     if pl.bumper and st2.currState != STATE_cleaning_bump:
         storedState2=st2.currState
+        if storedState2==STATE_cleaning_spiral or storedState2==STATE_cleaning_wallFollowing:#doing spiral or wall-following till hit some obstacle, then bouncing
+            storedState2 = STATE_cleaning_bouncing # return after maneuver to bouncing
         st2.NextState(STATE_cleaning_bump)
-        
-    #doing spiral till hit some obstacle, then bouncing
-            
+
+    # end of wall folowing after some time
     elif st2.currState == STATE_cleaning_wallFollowing:
         if st2.getAcumulatedTime() > 120:
             st2.ResetAcumulatedTime()
